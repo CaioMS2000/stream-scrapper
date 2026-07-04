@@ -8,9 +8,11 @@
 
 | Documento | O que cobre | Quando ler |
 |---|---|---|
-| **`Mapa_Stack_vs_Problema.md`** | Framework de decisão "proposta × stack": eixos, régua de latência, mapa de linguagens. Meta-referência. | Pra decidir/justificar qualquer escolha de tecnologia |
+| **`Mapa_Stack_vs_Problema.md`** | Framework de decisão "proposta × stack": eixos, régua de latência, mapa de linguagens. Meta-referência **universal**. | Pra decidir/justificar qualquer escolha de tecnologia |
+| **`Analise_Stack_do_Projeto.md`** | O framework acima **aplicado a este projeto**: all-TS vs Java vs Go, cenário ideal poliglota, registro da decisão. | Pra entender/revisitar por que all-TS (e quando mudaria) |
 | **`Arquitetura_VOD_Archiver.md`** | A espinha. Fronteira motor↔UI, contrato da API, schema, layout em disco, fluxos, **3 mecanismos de aquisição**. | Primeiro doc do projeto; é o índice técnico de tudo |
 | **`Modulo_Twitch.md`** | Fala com a Twitch. Token dance (live/vod), recovery por hash CDN, auth por cookie. Os caminhos **1 e 2**. | Antes de codar a comunicação com a plataforma |
+| **`Referencia_Tecnica_Twitch.md`** | Fatos concretos (não design): valor do hash, Client-ID, rate limits, comandos ffmpeg, gotchas de mux, trackers de metadata. | Ao implementar o `twitch`/`recorder`/`downloader` — é a folha de consulta |
 | **`Modulo_Recorder.md`** | Gravação ao vivo (caminho **3**). Decisão do motor de captura, ciclo, `.ts→.mp4`. | A menor fatia ponta a ponta; bom 1º alvo de código |
 | **`Modulo_Downloader.md`** | Download de VOD pós-fato (caminhos **1 e 2** reativos). ffmpeg vs puller paralelo. | Espelho reativo do recorder |
 | **`Modulo_Monitor.md`** | O gatilho proativo. Detecção via Helix, colheita de metadata, dispatch do recorder. | Onde a cadeia headless começa |
@@ -60,7 +62,7 @@ Arquitetura_VOD_Archiver        (a espinha: fronteira, contrato, schema, disco)
 | Layout em disco | `Arquitetura` §6 + `Store` §6 |
 | Por que sub-only funciona sem ser sub | `Twitch` §4B + `Arquitetura` §8 |
 | Por que `cookies.txt` (e não é bypass) | `Twitch` §4C + `Arquitetura` §8 |
-| Decisão Node vs Go | `Mapa_Stack` + `Recorder` §8 (o pivô de escala) |
+| Decisão Node vs Go (e por que all-TS) | `Analise_Stack_do_Projeto` + `Recorder` §8 (o pivô de escala) |
 | Segurança do servidor local | `Api_Events`, seção 7 |
 | O caso de borda irrecuperável | `Arquitetura` §8 (passo 4) + `Recorder` §9 |
 
@@ -99,10 +101,11 @@ Mesma ferramenta, veredito oposto, decidido pelo formato do problema (fechado vs
 3. **`recorder`** com `StreamlinkEngine` — a menor fatia que põe um `.mp4` no disco e **prova a tese ponta a ponta**.
 4. **`monitor`** (Helix) — fecha o loop headless: detecta → grava sozinho.
 5. **`downloader`** com `FfmpegStrategy` — completa os caminhos reativos.
-6. **`api` + `events`** — expõe o motor já funcional.
-7. **Painel React** — consome o contrato.
+6. **CLI interina** — casca fina que mapeia subcomandos direto pras interfaces dos módulos (sem HTTP); o **driver de teste** enquanto a UI não existe. Andaime, não produto. (`Arquitetura` §10, nota)
+7. **`api` + `events`** — expõe o motor já funcional.
+8. **Painel React** — consome o contrato.
 
-Atacar o risco na ordem certa: o difícil (`twitch`) vem cedo; a UI (fácil, contrato pronto) vem por último.
+Atacar o risco na ordem certa: o difícil (`twitch`) vem cedo; a UI (fácil, contrato pronto) vem por último. A **CLI** entra no meio como andaime: assim que o motor tem funções chamáveis, ela deixa você pilotar tudo headless antes de escrever uma linha de React.
 
 ---
 
@@ -113,6 +116,8 @@ Atacar o risco na ordem certa: o difícil (`twitch`) vem cedo; a UI (fácil, con
 | Framework de stack | ✅ especificado |
 | Arquitetura (fronteira, contrato, schema, disco, aquisição) | ✅ especificado |
 | `store`, `twitch`, `recorder`, `downloader`, `monitor`, `api`/`events` | ✅ especificados |
+| Referência técnica concreta (fatos da Twitch) | ✅ consolidada |
+| CLI interina (driver de teste headless) | ⬜ a especificar (posicionada na sequência §6) |
 | Painel React (UX + consumo do contrato) | ⬜ pendente |
 | Implementação (código) | ⬜ pendente |
 

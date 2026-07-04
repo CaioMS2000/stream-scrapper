@@ -237,9 +237,12 @@ O `twitch` é o único módulo com lógica frágil (a Twitch muda hash de persis
 ## 10. Sequência sugerida de construção
 
 1. **Motor headless primeiro, sem UI.** Provar o caminho duro: `twitch` (token + manifesto + recovery) → `recorder` gravando uma live → `store` salvando + `meta.json`. É aqui que mora o risco real (a dança gql/CDN e a orquestração de segmentos), não na tela.
-2. **Subir a `api`** (REST + eventos) por cima do motor já funcional.
-3. **Painel React** consumindo a API: lista de monitorados, capturas, disparo de download.
-4. **Proxy HLS + player** por último (a parte de "assistir ao vivo"), que é independente de tudo o resto.
+2. **CLI interina** (driver de teste) — assim que o motor tem funções chamáveis, uma casca CLI mínima mapeia subcomandos direto pras interfaces internas dos módulos (`addStreamer`, `startRecording`, `queueDownload`, `resolveContent`), **sem HTTP**. É o jeito de pilotar e exercitar o motor headless enquanto o React não existe — não é produto final, é andaime. (Ver nota abaixo.)
+3. **Subir a `api`** (REST + eventos) por cima do motor já funcional.
+4. **Painel React** consumindo a API: lista de monitorados, capturas, disparo de download.
+5. **Proxy HLS + player** por último (a parte de "assistir ao vivo"), que é independente de tudo o resto.
+
+> **Nota sobre a CLI:** ela é o **consumidor mais fino possível** do motor — mais fino que a própria `api`, porque não passa por HTTP nem serialização; chama as funções dos módulos diretamente. Por isso encaixa cedo (passo 2), antes da `api`, e serve de andaime de teste headless. Depois que a `api` sobe, a CLI pode continuar existindo como um segundo consumidor (batendo na REST ou no barramento de `events` — o `Modulo_Api_Events.md` §4 já a prevê como possível assinante), mas seu papel-âncora é ser o **driver interino** das fases iniciais. É a resposta pro "como eu uso isso antes da UI ficar pronta".
 
 Construindo nessa ordem, a parte cara (contrato + schema + disco) fica fixada cedo, e a barata (linguagem do motor) continua adiável até você saber se isso vira "só seu" ou "frota de gravação".
 
