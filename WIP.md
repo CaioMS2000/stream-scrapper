@@ -4,8 +4,12 @@
 
 ## Onde estamos
 
-- **VOD público: provado ponta a ponta.** O spike (`index.ts`) fez gql (token) → usher (manifesto) → CDN → `.mp4` no disco. O risco central do projeto (a dança com a Twitch) está de-riscado, e funciona hoje — inclusive o truque de mandar a query gql inteira em vez do persisted hash volátil.
-- Ainda é **script descartável**, sem módulos, sem `store`, sem arquitetura.
+- **Os 3 caminhos de aquisição: provados ponta a ponta**, cada um num spike descartável:
+  - `index.ts` — VOD (caminho 1): gql token → usher → CDN → `.mp4`. Playlist fechada, ~40x.
+  - `live.ts` — Live (caminho 3): gql live → usher canal → `.ts` rolante em tempo real (1x).
+  - `recovery.ts` — Recovery (caminho 2): hash SHA1 da CDN, sem token/conta.
+- O risco central (a dança frágil com a Twitch) está **de-riscado** e funciona hoje — inclusive o truque de mandar a query gql inteira em vez do persisted hash volátil.
+- Ainda é **script descartável**, sem módulos, sem `store`, sem arquitetura. → **próximo passo: começar a arquitetura de verdade.**
 
 ## Achados do primeiro run (a carregar adiante)
 
@@ -21,7 +25,7 @@ Regra: **spikes primeiro (de-riscar), encapsular módulo depois (retrofit em cim
 
 **Depois (ainda spike):**
 - [x] Spike da **live** (`live.ts`) — **Feito:** capturou source 1080p em `.ts` válido, tocável. Aprendizado-chave: `speed=1.01x` (tempo real, vs 40x do VOD) → o `recorder` é worker de longa duração, não fetch. Token não expirou (run curto ~2min); a morte por token só aparece em gravação longa.
-- [ ] Spike do **recovery por hash CDN** — `SHA1(login_streamId_startedAt)` + HEAD, sem token (o caminho 2).
+- [x] Spike do **recovery por hash CDN** (`recovery.ts`) — **Feito:** `SHA1(login_streamId_startedAt)[:20]` + HEAD nos hosts de CDN, sem token. Validado determinístico: o hash calculado bateu com o path real do VOD (`b2fa85c40d5d5513b56a`) e a CDN deu 200. Inclui janela ±2s pro arredondamento de tracker.
 
 **Ainda NÃO (é cedo):**
 - Encapsular o **módulo downloader**. Depende do `store` (que não existe) e da interface do `twitch` (só estabiliza depois dos spikes de live+recovery). Fixar a fronteira agora = churn.
