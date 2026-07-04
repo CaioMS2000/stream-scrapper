@@ -1,0 +1,18 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "extends": [
+    "@caioms/biomejs-config/biome"
+  ],
+  "linter":{
+    "rules":{
+      "style":{
+        "useImportType": "error"
+      }
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  }
+}
