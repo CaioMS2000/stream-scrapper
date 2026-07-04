@@ -1,5 +1,6 @@
 node_modules
 *.mp4
+live_*.ts
 *.txt
 commit-stages.sh
 generate-commit-message-task.md
