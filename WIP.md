@@ -20,7 +20,7 @@ Regra: **spikes primeiro (de-riscar), encapsular módulo depois (retrofit em cim
 - [x] `parseManifest` + `selectQuality` no spike (funções puras). Conserta o achado 1. → é o miolo do `Modulo_Twitch.md` §4D, ainda solto no script. **Feito:** lista as 6 qualidades, escolhe `chunked`/source, ffmpeg baixa só ela (double-download eliminado, velocidade 8x→~40x). Aceita qualidade como 3º arg do CLI.
 
 **Depois (ainda spike):**
-- [ ] Spike da **live** — trocar `isVod`→`isLive`/`login`, usher de canal. Maior aprendizado: token que expira + playlist rolante (o porquê do `recorder`).
+- [x] Spike da **live** (`live.ts`) — **Feito:** capturou source 1080p em `.ts` válido, tocável. Aprendizado-chave: `speed=1.01x` (tempo real, vs 40x do VOD) → o `recorder` é worker de longa duração, não fetch. Token não expirou (run curto ~2min); a morte por token só aparece em gravação longa.
 - [ ] Spike do **recovery por hash CDN** — `SHA1(login_streamId_startedAt)` + HEAD, sem token (o caminho 2).
 
 **Ainda NÃO (é cedo):**
