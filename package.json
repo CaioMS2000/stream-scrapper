@@ -6,6 +6,7 @@
   "scripts": {
     "start": "bun index.ts 2800325069",
     "start:live": "bun live.ts TEHb_twitch",
+    "test": "bun test",
     "prepare": "husky"
   },
   "devDependencies": {
