@@ -4,6 +4,9 @@ import { join } from 'node:path'
 import { StoragePaths } from './paths.ts'
 import { SCHEMA_SQL } from './schema.ts'
 import type {
+	Download,
+	DownloadPatch,
+	DownloadSource,
 	StorageKind,
 	Store,
 	Stream,
@@ -27,6 +30,10 @@ export class SqliteStore implements Store {
 	private readonly stmtUpsertStream: Statement
 	private readonly stmtGetStream: Statement
 	private readonly stmtListStreams: Statement
+	private readonly stmtCreateDownload: Statement
+	private readonly stmtUpdateDownload: Statement
+	private readonly stmtGetDownload: Statement
+	private readonly stmtListDownloads: Statement
 
 	constructor(root: string) {
 		// bun:sqlite cria o ARQUIVO, mas não a pasta pai → garante o root primeiro.
@@ -69,6 +76,20 @@ export class SqliteStore implements Store {
 		)
 		this.stmtListStreams = this.db.query(
 			'SELECT * FROM streams ORDER BY started_at'
+		)
+		this.stmtCreateDownload = this.db.query(`
+			INSERT INTO downloads (id, stream_id, source, status, progress, storage_path, created_at)
+			VALUES ($id, $stream_id, $source, $status, $progress, $storage_path, $created_at)
+		`)
+		this.stmtUpdateDownload = this.db.query(`
+			UPDATE downloads SET status = $status, progress = $progress, storage_path = $storage_path
+			WHERE id = $id
+		`)
+		this.stmtGetDownload = this.db.query(
+			'SELECT * FROM downloads WHERE id = $id'
+		)
+		this.stmtListDownloads = this.db.query(
+			'SELECT * FROM downloads ORDER BY created_at'
 		)
 	}
 
@@ -142,6 +163,48 @@ export class SqliteStore implements Store {
 				this.stmtUpsertStream.run(this.streamBind(m))
 			}
 		})(metas)
+	}
+
+	// --- downloads (caminhos 1/2) ---
+	createDownload(streamId: string, source: DownloadSource): Download {
+		const download: Download = {
+			id: crypto.randomUUID(),
+			stream_id: streamId,
+			source,
+			status: 'queued',
+			progress: 0,
+			storage_path: null,
+			created_at: Math.floor(Date.now() / 1000),
+		}
+		this.stmtCreateDownload.run({
+			$id: download.id,
+			$stream_id: download.stream_id,
+			$source: download.source,
+			$status: download.status,
+			$progress: download.progress,
+			$storage_path: download.storage_path,
+			$created_at: download.created_at,
+		})
+		return download
+	}
+
+	updateDownload(id: string, patch: DownloadPatch): void {
+		const cur = this.getDownload(id)
+		if (!cur) throw new Error(`download ${id} não existe`)
+		this.stmtUpdateDownload.run({
+			$id: id,
+			$status: patch.status ?? cur.status,
+			$progress: patch.progress ?? cur.progress,
+			$storage_path: patch.storage_path ?? cur.storage_path,
+		})
+	}
+
+	getDownload(id: string): Download | null {
+		return this.stmtGetDownload.get({ $id: id }) as Download | null
+	}
+
+	listDownloads(): Download[] {
+		return this.stmtListDownloads.all() as Download[]
 	}
 
 	close(): void {

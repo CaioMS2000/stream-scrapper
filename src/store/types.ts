@@ -48,6 +48,26 @@ export interface StreamInput {
 
 export type StorageKind = 'recording' | 'vod' | 'meta' | 'segments'
 
+export type DownloadSource = 'authenticated' | 'cdn-recovery'
+export type DownloadStatus = 'queued' | 'downloading' | 'completed' | 'failed'
+
+// Registro de um job de download de VOD (caminhos 1/2). Espelha o schema §5.
+export interface Download {
+	id: string
+	stream_id: string
+	source: DownloadSource
+	status: DownloadStatus
+	progress: number
+	storage_path: string | null
+	created_at: number
+}
+
+export interface DownloadPatch {
+	status?: DownloadStatus
+	progress?: number
+	storage_path?: string | null
+}
+
 // Contrato público do módulo — a fronteira que os outros módulos acoplam.
 // SqliteStore é a implementação; consumidores dependem desta interface.
 export interface Store {
@@ -60,5 +80,9 @@ export interface Store {
 	reserveStoragePath(streamId: string, kind: StorageKind): string
 	writeMeta(streamId: string): Promise<void>
 	reindexFromDisk(): Promise<void>
+	createDownload(streamId: string, source: DownloadSource): Download
+	updateDownload(id: string, patch: DownloadPatch): void
+	getDownload(id: string): Download | null
+	listDownloads(): Download[]
 	close(): void
 }
