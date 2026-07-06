@@ -1,42 +1,28 @@
-# NEXT — alvo atual: módulo `store`
+# NEXT — alvo atual: módulo `recorder` (depois: `monitor`)
 
-> Companheiro do `WIP.md`. WIP = onde estamos; este = **pra onde vamos agora**, em detalhe tático. Reescrito quando o alvo fecha. Spec completo e atemporal: `planning/claude/Modulo_Store.md`.
+> Companheiro do `WIP.md`. WIP = onde estamos; este = pra onde vamos agora, em detalhe tático. Spec: `planning/claude/Modulo_Recorder.md` (e `Modulo_Monitor.md` pro seguinte).
 
-## Por que o `store` agora
+## Onde estamos
 
-Acabou a fase de spike (os 3 caminhos provados). A sequência de build (`00_Indice_Geral.md` §6) começa pelo `store`: a **fundação**. Nada persiste sem ele, e todos os outros módulos leem/escrevem através dele. É também a primeira peça de arquitetura "de verdade" (fim dos scripts descartáveis).
+Motor headless com 3 módulos-fundação prontos e testados: **`store` + `twitch` + `downloader`**. O caminho **reativo** (baixar VOD passado — caminhos 1 e 2) está completo ponta a ponta, provado com conteúdo real via composition root.
 
-## A tese que a primeira fatia tem que provar
+## Próximo: `recorder` (caminho 3 — gravação ao vivo)
 
-**"Disco é a verdade, banco é índice"** (`Modulo_Store.md` §4). Se isso vale, o acervo sobrevive a qualquer corrupção/perda do banco. Então a primeira fatia **não é "CRUD bonito"** — é provar isso ponta a ponta, do mesmo jeito que os spikes provaram a Twitch:
+A única rota **proativa** e a única com **garantia** (a cópia é sua, sobrevive a deleção/sub-only/expiração). Espelho do downloader, mas sobre playlist **rolante** (o oposto: token expira no meio, `ffmpeg` cru morre → §3).
 
-> escrever stream + arquivo + `meta.json` → **apagar o `archive.db`** → `reindexFromDisk()` reconstrói tudo.
+**Escopo da 1ª fatia (mínimo, disparo manual — defer o monitor):**
+- Precisa **destravar o `resolveLiveManifest`** que ficou deferido no `twitch` (login → gql `isLive` → usher de canal → `Manifest`). O `live.ts` já provou a lógica.
+- `class Recorder` (class-based + DI, como os outros): recebe o manifesto live resolvido + `streamId`, spawna a captura, grava `.ts`, no fim remuxa pra `.mp4`, arquiva no `store`.
+- **Grava em `.ts`, remuxa no fim** (§7) — robusto a truncamento (a lição do moov atom que a gente já viu na prática).
+- **Motor de captura atrás de interface** `CaptureEngine` (§3): `StreamlinkEngine` (MVP, re-auth sozinho) vs `SegmentPullerEngine` (versão limpa). Decidir qual no MVP — provavelmente streamlink.
+- Store: `recordings` ops (un-defer quando o consumidor — este — chegar, igual fizemos com `downloads`).
+- **Disparo manual** de um composition root (login + stream record na mão), como fizemos com o downloader. Sem monitor ainda.
+- Prova: unit com `CaptureEngine` fake + store real temp; sanity real gravando alguns segundos de um canal ao vivo.
 
-Esse é o "spike do store": de-risca a claim central (resiliência) antes de erguer o resto. Se passar, o store está certo por construção.
+## Depois: `monitor` (o gatilho automático)
 
-## Primeira fatia (mínima, provável end-to-end)
+Fecha o loop headless: poll (Helix) → detecta go-live → registra a stream (`stream_id + started_at`) → dispara o `recorder` pros `auto_record`. É a automação que troca o "disparo na mão" pelo "grava sozinho os canais que sigo". Também colhe o `started_at` que habilita a recovery (caminho 2) — a "função escondida" do `Modulo_Monitor.md` §1.
 
-1. **Bootstrap** — abrir/criar `archive.db` com `bun:sqlite`, ligar **WAL**, criar tabelas se não existirem. Schema da `Arquitetura_VOD_Archiver.md` §5: `streamers`, `streams`, `recordings`, `downloads` (cria as 4, usa 2 por ora).
-2. **Disco** — `reserveStoragePath(streamId, kind)`: calcula `<root>/<login>/<streamId>_<startedAt>/`, faz `mkdir -p`, devolve o caminho. `writeMeta(streamId, meta)`: grava o `meta.json` auto-descritivo.
-3. **Entidades mínimas** — `addStreamer`/`getStreamer`, `upsertStream`/`getStream`. (`recordings`/`downloads` ficam pra quando `twitch`/`recorder`/`downloader` precisarem.)
-4. **`reindexFromDisk()`** — varre a árvore, lê os `meta.json`, reconstrói as linhas.
-5. **A prova** — um script curto (ex.: `store-check.ts`) que: insere streamer + stream, reserva path, escreve `meta.json` → **apaga o `archive.db`** → `reindexFromDisk()` → confirma que voltou idêntico. É o critério de "fatia pronta".
+## Quando o recorder fechar
 
-## Como abordar
-
-- **`bun:sqlite`** (`import { Database } from "bun:sqlite"`), WAL mode, conexão única (escritas serializadas — single-user, trivial).
-- Vive em **`src/store/`** — um diretório por módulo, `index.ts` exportando as funções (o "módulo = pasta com responsabilidade + poucos pontos de troca" do índice §4). É a **primeira pasta de `src/`** do projeto.
-- **`login` na pasta** (humano-navegável) + **`user_id` no `meta.json`** (estável, sobrevive a rename) — `Modulo_Store.md` §6.
-- `storage_root` default `./data` por ora (vira config depois).
-- A interface language-agnostic do `Modulo_Store.md` §5 é o norte — implementa só o subconjunto acima nesta fatia.
-
-## Ainda NÃO nesta fatia (defer consciente)
-
-- Framework de migrations (só uma `schema_version` + manual, depois).
-- Ops completas de `recordings`/`downloads` (só quando o consumidor existir — evita churn).
-- Retenção/limpeza, reindex avançado, multi-disco.
-- Tabela de config + `cookies.txt` (entra quando o `twitch`/caminho 1 precisar).
-
-## Quando esta fatia fechar
-
-→ Próximo alvo: **extrair o módulo `twitch`** — recortar o token dance + `parseManifest`/`selectQuality` + recovery por hash (que hoje estão duplicados nos 3 spikes) atrás de uma interface única. Aí este `NEXT.md` é reescrito pra mirar nele.
+→ Os 3 caminhos de aquisição estarão implementados de verdade (não só nos spikes). Reescreve este NEXT pra mirar o `monitor`.
