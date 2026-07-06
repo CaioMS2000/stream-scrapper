@@ -59,8 +59,10 @@ async function getLiveToken(
 
 	if (!res.ok)
 		throw new Error(`gql falhou: HTTP ${res.status} — ${await res.text()}`)
-	const json = await res.json()
-	const tok = json?.data?.streamPlaybackAccessToken
+	const json = (await res.json()) as {
+		data?: { streamPlaybackAccessToken?: { value: string; signature: string } }
+	}
+	const tok = json.data?.streamPlaybackAccessToken
 	if (!tok)
 		throw new Error(
 			`sem token de live — o canal "${channel}" provavelmente está offline`

@@ -55,8 +55,10 @@ async function getVodToken(
 
 	if (!res.ok)
 		throw new Error(`gql falhou: HTTP ${res.status} — ${await res.text()}`)
-	const json = await res.json()
-	const tok = json?.data?.videoPlaybackAccessToken
+	const json = (await res.json()) as {
+		data?: { videoPlaybackAccessToken?: { value: string; signature: string } }
+	}
+	const tok = json.data?.videoPlaybackAccessToken
 	if (!tok) throw new Error(`sem token na resposta: ${JSON.stringify(json)}`)
 	return { value: tok.value, signature: tok.signature }
 }
