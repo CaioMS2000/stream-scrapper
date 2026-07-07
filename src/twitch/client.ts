@@ -1,6 +1,11 @@
 import { defaultTwitchConfig, type TwitchConfig } from './config.ts'
 import { FetchHttp, type TwitchHttp } from './http.ts'
-import type { QualityVariant, ResolveResult, Twitch } from './types.ts'
+import type {
+	LiveMetadata,
+	QualityVariant,
+	ResolveResult,
+	Twitch,
+} from './types.ts'
 
 // Único módulo que fala com a superfície privada da Twitch. Transforma um pedido
 // num Manifest HLS normalizado — o caminho (1 vs 2) fica invisível downstream.
@@ -87,6 +92,42 @@ export class TwitchClient implements Twitch {
 				authContext: { clientId: this.config.clientId },
 				muted: false,
 			},
+		}
+	}
+
+	// --- Detecção (monitor): metadata da live via gql, ou null se offline ---
+	async getLiveMetadata(login: string): Promise<LiveMetadata | null> {
+		const json = (await this.http.postJson(
+			this.config.gqlUrl,
+			{
+				operationName: 'StreamMetadata',
+				query: this.config.streamMetadataQuery,
+				variables: { login: login.toLowerCase() },
+			},
+			{ 'Client-ID': this.config.clientId }
+		)) as {
+			data?: {
+				user?: {
+					id: string
+					stream: {
+						id: string
+						createdAt: string
+						title: string | null
+						game: { name: string | null } | null
+					} | null
+				} | null
+			}
+		}
+
+		const user = json.data?.user
+		if (!user?.stream) return null // canal offline (ou login inexistente)
+
+		return {
+			userId: user.id,
+			streamId: user.stream.id,
+			startedAt: Math.floor(Date.parse(user.stream.createdAt) / 1000),
+			title: user.stream.title,
+			game: user.stream.game?.name ?? null,
 		}
 	}
 

@@ -31,7 +31,17 @@ export type ResolveResult =
 	| { ok: true; manifest: Manifest }
 	| { ok: false; error: ResolveError }
 
-// Contrato público — downloader/recorder acoplam nisto (espelha Store/SqliteStore).
+// Metadata de detecção (o que o monitor colhe no go-live). Distinta do Manifest:
+// isto é "quem/quando" (autoritativo p/ o hash da CDN, caminho 2), não "como tocar".
+export interface LiveMetadata {
+	userId: string // chave estável (login pode mudar; user_id não)
+	streamId: string
+	startedAt: number // unix s — o mesmo ingrediente do hash da recovery
+	title: string | null
+	game: string | null
+}
+
+// Contrato público — downloader/recorder/monitor acoplam nisto (espelha Store).
 export interface Twitch {
 	resolveVodManifest(vodId: string): Promise<ResolveResult>
 	recoverVodManifest(
@@ -41,4 +51,6 @@ export interface Twitch {
 	): Promise<ResolveResult>
 	// Caminho 3 (live): token dance com isLive → master do endpoint de canal.
 	resolveLiveManifest(login: string): Promise<ResolveResult>
+	// Detecção (monitor): metadata da live, ou null se o canal está offline.
+	getLiveMetadata(login: string): Promise<LiveMetadata | null>
 }

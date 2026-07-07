@@ -6,6 +6,7 @@ export type { HttpResponse, TwitchHttp } from './http.ts'
 export { FetchHttp } from './http.ts'
 export type {
 	AuthContext,
+	LiveMetadata,
 	Manifest,
 	ManifestSource,
 	QualityVariant,

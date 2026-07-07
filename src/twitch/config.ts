@@ -9,6 +9,7 @@ export interface TwitchConfig {
 	usherLiveBase: string
 	cdnHosts: string[]
 	playbackQuery: string
+	streamMetadataQuery: string
 }
 
 export const defaultTwitchConfig: TwitchConfig = {
@@ -34,5 +35,16 @@ export const defaultTwitchConfig: TwitchConfig = {
 		'query PlaybackAccessToken_Template($login: String!, $isLive: Boolean!, $vodID: ID!, $isVod: Boolean!, $playerType: String!) {' +
 		'  streamPlaybackAccessToken(channelName: $login, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isLive) { value signature __typename }' +
 		'  videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: $playerType}) @include(if: $isVod) { value signature __typename }' +
+		'}',
+	// Detecção de live + metadata (caminho do monitor). Query INTEIRA (não persisted
+	// hash) — mesmo truque do playbackQuery. Provada: live → user.stream populado;
+	// offline → user.stream null. createdAt é ISO 8601. user.id é o user_id estável.
+	streamMetadataQuery:
+		'query StreamMetadata($login: String!) {' +
+		'  user(login: $login) {' +
+		'    id' +
+		'    login' +
+		'    stream { id createdAt title type game { name } }' +
+		'  }' +
 		'}',
 }

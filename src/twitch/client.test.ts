@@ -102,6 +102,46 @@ test('resolveLiveManifest: sem token (offline) → not-found', async () => {
 	})
 })
 
+// --- getLiveMetadata (detecção do monitor) ---
+test('getLiveMetadata: user.stream → LiveMetadata mapeada', async () => {
+	const t = new TwitchClient(
+		fakeHttp({
+			postJson: async () => ({
+				data: {
+					user: {
+						id: '411',
+						stream: {
+							id: '319',
+							createdAt: '2026-07-06T17:01:03Z',
+							title: 'oi',
+							game: { name: 'Just Chatting' },
+						},
+					},
+				},
+			}),
+		})
+	)
+	const m = await t.getLiveMetadata('jynxzi')
+	expect(m).toMatchObject({
+		userId: '411',
+		streamId: '319',
+		title: 'oi',
+		game: 'Just Chatting',
+	})
+	expect(m?.startedAt).toBe(
+		Math.floor(Date.parse('2026-07-06T17:01:03Z') / 1000)
+	)
+})
+
+test('getLiveMetadata: stream null → null (offline)', async () => {
+	const t = new TwitchClient(
+		fakeHttp({
+			postJson: async () => ({ data: { user: { id: '92', stream: null } } }),
+		})
+	)
+	expect(await t.getLiveMetadata('caedrel')).toBeNull()
+})
+
 // --- recoverVodManifest (caminho 2): valida o hash OFFLINE ---
 test('recoverVodManifest: acha na CDN pela URL do hash correto', async () => {
 	// valores conhecidos (do recovery.ts) → hash esperado b2fa85c40d5d5513b56a
