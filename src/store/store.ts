@@ -7,6 +7,8 @@ import type {
 	Download,
 	DownloadPatch,
 	DownloadSource,
+	Recording,
+	RecordingPatch,
 	StorageKind,
 	Store,
 	Stream,
@@ -34,6 +36,10 @@ export class SqliteStore implements Store {
 	private readonly stmtUpdateDownload: Statement
 	private readonly stmtGetDownload: Statement
 	private readonly stmtListDownloads: Statement
+	private readonly stmtCreateRecording: Statement
+	private readonly stmtUpdateRecording: Statement
+	private readonly stmtGetRecording: Statement
+	private readonly stmtListRecordings: Statement
 
 	constructor(root: string) {
 		// bun:sqlite cria o ARQUIVO, mas não a pasta pai → garante o root primeiro.
@@ -90,6 +96,20 @@ export class SqliteStore implements Store {
 		)
 		this.stmtListDownloads = this.db.query(
 			'SELECT * FROM downloads ORDER BY created_at'
+		)
+		this.stmtCreateRecording = this.db.query(`
+			INSERT INTO recordings (id, stream_id, started_at, ended_at, status, quality, storage_path, bytes)
+			VALUES ($id, $stream_id, $started_at, $ended_at, $status, $quality, $storage_path, $bytes)
+		`)
+		this.stmtUpdateRecording = this.db.query(`
+			UPDATE recordings SET status = $status, ended_at = $ended_at, storage_path = $storage_path, bytes = $bytes
+			WHERE id = $id
+		`)
+		this.stmtGetRecording = this.db.query(
+			'SELECT * FROM recordings WHERE id = $id'
+		)
+		this.stmtListRecordings = this.db.query(
+			'SELECT * FROM recordings ORDER BY started_at'
 		)
 	}
 
@@ -205,6 +225,51 @@ export class SqliteStore implements Store {
 
 	listDownloads(): Download[] {
 		return this.stmtListDownloads.all() as Download[]
+	}
+
+	// --- recordings (caminho 3) ---
+	createRecording(streamId: string, quality: string): Recording {
+		const recording: Recording = {
+			id: crypto.randomUUID(),
+			stream_id: streamId,
+			started_at: Math.floor(Date.now() / 1000),
+			ended_at: null,
+			status: 'recording',
+			quality,
+			storage_path: null,
+			bytes: null,
+		}
+		this.stmtCreateRecording.run({
+			$id: recording.id,
+			$stream_id: recording.stream_id,
+			$started_at: recording.started_at,
+			$ended_at: recording.ended_at,
+			$status: recording.status,
+			$quality: recording.quality,
+			$storage_path: recording.storage_path,
+			$bytes: recording.bytes,
+		})
+		return recording
+	}
+
+	updateRecording(id: string, patch: RecordingPatch): void {
+		const cur = this.getRecording(id)
+		if (!cur) throw new Error(`recording ${id} não existe`)
+		this.stmtUpdateRecording.run({
+			$id: id,
+			$status: patch.status ?? cur.status,
+			$ended_at: patch.ended_at ?? cur.ended_at,
+			$storage_path: patch.storage_path ?? cur.storage_path,
+			$bytes: patch.bytes ?? cur.bytes,
+		})
+	}
+
+	getRecording(id: string): Recording | null {
+		return this.stmtGetRecording.get({ $id: id }) as Recording | null
+	}
+
+	listRecordings(): Recording[] {
+		return this.stmtListRecordings.all() as Recording[]
 	}
 
 	close(): void {

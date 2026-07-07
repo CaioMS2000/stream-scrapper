@@ -68,6 +68,27 @@ export interface DownloadPatch {
 	storage_path?: string | null
 }
 
+export type RecordingStatus = 'recording' | 'completed' | 'failed'
+
+// Registro de uma gravação ao vivo (caminho 3). Espelha o schema §5.
+export interface Recording {
+	id: string
+	stream_id: string
+	started_at: number
+	ended_at: number | null
+	status: RecordingStatus
+	quality: string
+	storage_path: string | null
+	bytes: number | null
+}
+
+export interface RecordingPatch {
+	status?: RecordingStatus
+	ended_at?: number | null
+	storage_path?: string | null
+	bytes?: number | null
+}
+
 // Contrato público do módulo — a fronteira que os outros módulos acoplam.
 // SqliteStore é a implementação; consumidores dependem desta interface.
 export interface Store {
@@ -84,5 +105,9 @@ export interface Store {
 	updateDownload(id: string, patch: DownloadPatch): void
 	getDownload(id: string): Download | null
 	listDownloads(): Download[]
+	createRecording(streamId: string, quality: string): Recording
+	updateRecording(id: string, patch: RecordingPatch): void
+	getRecording(id: string): Recording | null
+	listRecordings(): Recording[]
 	close(): void
 }
