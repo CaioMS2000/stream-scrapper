@@ -4,14 +4,17 @@
 //
 // Uso:  bun record.ts <login> [segundos] [qualidade]
 //       login     = canal que precisa estar AO VIVO agora
-//       segundos  = corta a captura (default 8, p/ sanity; omita p/ gravar até fechar)
+//       segundos  = corta a captura (default 8, p/ sanity; 0 = ilimitado, grava até fechar)
 //       qualidade = 'best' (padrão), 'chunked' (=source), '720p60', '720p'…
+//
+// Usa o SegmentPullerEngine: re-autentica quando o token vence (>20 min), então
+// `bun record.ts <canal> 0` é o teste real da re-auth (deixa rodar além dos 20 min).
 //
 // Grava em ./data/<login>/<streamId>_<startedAt>/recording.mp4 (+ meta.json + linha
 // em recordings). O streamId/startedAt aqui são SINTÉTICOS — os reais viriam do
 // monitor via Helix (o que também habilitaria a recovery, caminho 2).
 
-import { Recorder } from './src/recorder'
+import { Recorder, SegmentPullerEngine } from './src/recorder'
 import { SqliteStore } from './src/store'
 import { TwitchClient } from './src/twitch'
 
@@ -20,12 +23,14 @@ if (!login) {
 	console.error('uso: bun record.ts <login> [segundos] [qualidade]')
 	process.exit(1)
 }
-const durationSeconds = Number(process.argv[3] ?? 8)
+// 0 (ou omitido como 0) → ilimitado; senão corta em N segundos.
+const durationSeconds =
+	(process.argv[3] ? Number(process.argv[3]) : 8) || undefined
 const quality = process.argv[4] ?? 'best'
 
 const store = new SqliteStore('./data')
 const twitch = new TwitchClient()
-const recorder = new Recorder({ store })
+const recorder = new Recorder({ store, engine: new SegmentPullerEngine() })
 
 // 1) twitch resolve o manifesto live (token dance isLive → master do canal).
 const resolved = await twitch.resolveLiveManifest(login)
@@ -54,10 +59,15 @@ store.upsertStream({
 })
 
 // 3) grava. durationSeconds corta a captura; sem ele, roda até a live fechar.
-console.log(`\n→ gravando ${durationSeconds}s de ${login} …`)
+// refresh: re-resolve o manifesto quando o token vence (re-auth do puller).
+console.log(
+	`\n→ gravando ${durationSeconds ? `${durationSeconds}s` : 'até fechar'} de ${login} …`
+)
 const handle = await recorder.record(streamId, resolved.manifest, {
 	quality,
 	durationSeconds,
+	refresh: () =>
+		twitch.resolveLiveManifest(login).then(x => (x.ok ? x.manifest : null)),
 })
 
 console.log(`\n${handle.status === 'completed' ? '✓' : '✗'} ${handle.status}`)

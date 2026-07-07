@@ -11,7 +11,7 @@
 // Ctrl+C encerra. Grava em ./data/<login>/<streamId>_<startedAt>/recording.mp4.
 
 import { StreamMonitor } from './src/monitor'
-import { Recorder } from './src/recorder'
+import { Recorder, SegmentPullerEngine } from './src/recorder'
 import { SqliteStore } from './src/store'
 import { TwitchClient } from './src/twitch'
 
@@ -25,7 +25,8 @@ const intervalMs = Number(process.argv[4] ?? 15_000)
 
 const store = new SqliteStore('./data')
 const twitch = new TwitchClient()
-const recorder = new Recorder({ store })
+// motor puller: sobrevive à expiração do token (>20 min) — o monitor injeta o refresh.
+const recorder = new Recorder({ store, engine: new SegmentPullerEngine() })
 const monitor = new StreamMonitor({
 	store,
 	twitch,
