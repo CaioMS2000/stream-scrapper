@@ -64,6 +64,32 @@ export class TwitchClient implements Twitch {
 		}
 	}
 
+	// --- Caminho 3: live via token dance (isLive) → master do endpoint de canal ---
+	async resolveLiveManifest(login: string): Promise<ResolveResult> {
+		const channel = login.toLowerCase()
+		const token = await this.getLiveToken(channel)
+		if (!token) return { ok: false, error: 'not-found' } // canal offline
+
+		const url = this.usherLiveUrl(channel, token.value, token.signature)
+		const res = await this.http.getText(url)
+		if (!res.ok) {
+			return {
+				ok: false,
+				error: res.status === 403 ? 'forbidden' : 'not-found',
+			}
+		}
+
+		return {
+			ok: true,
+			manifest: {
+				source: 'authenticated', // é token dance, como o VOD público
+				variants: TwitchClient.parseManifest(res.body),
+				authContext: { clientId: this.config.clientId },
+				muted: false,
+			},
+		}
+	}
+
 	// --- estáticos puros (extraídos dos spikes; Modulo_Twitch §4D) ---
 	static parseManifest(masterBody: string): QualityVariant[] {
 		const lines = masterBody.split('\n')
@@ -134,6 +160,46 @@ export class TwitchClient implements Twitch {
 			platform: 'web',
 		})
 		return `${this.config.usherVodBase}/${vodId}.m3u8?${p}`
+	}
+
+	// Token de live: mesma query, isLive:true + login → streamPlaybackAccessToken
+	// (não videoPlaybackAccessToken). Null = canal offline (a Twitch não emite token).
+	private async getLiveToken(
+		login: string
+	): Promise<{ value: string; signature: string } | null> {
+		const json = (await this.http.postJson(
+			this.config.gqlUrl,
+			{
+				operationName: 'PlaybackAccessToken_Template',
+				query: this.config.playbackQuery,
+				variables: {
+					isLive: true,
+					login,
+					isVod: false,
+					vodID: '',
+					playerType: 'site',
+				},
+			},
+			{ 'Client-ID': this.config.clientId }
+		)) as {
+			data?: {
+				streamPlaybackAccessToken?: { value: string; signature: string }
+			}
+		}
+		return json.data?.streamPlaybackAccessToken ?? null
+	}
+
+	private usherLiveUrl(login: string, token: string, sig: string): string {
+		const p = new URLSearchParams({
+			token,
+			sig,
+			allow_source: 'true',
+			allow_audio_only: 'true',
+			fast_bread: 'true', // baixa latência (segmentos parciais) — típico de live
+			player: 'twitchweb',
+			platform: 'web',
+		})
+		return `${this.config.usherLiveBase}/${login}.m3u8?${p}`
 	}
 
 	private static cdnHash(base: string): string {

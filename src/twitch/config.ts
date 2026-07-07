@@ -6,6 +6,7 @@ export interface TwitchConfig {
 	clientId: string
 	gqlUrl: string
 	usherVodBase: string
+	usherLiveBase: string
 	cdnHosts: string[]
 	playbackQuery: string
 }
@@ -14,6 +15,8 @@ export const defaultTwitchConfig: TwitchConfig = {
 	clientId: 'kimne78kx3ncx6brgo4mv6wki5h1ko', // web client público (Referencia §3)
 	gqlUrl: 'https://gql.twitch.tv/gql',
 	usherVodBase: 'https://usher.ttvnw.net/vod',
+	// live usa o endpoint de CANAL (não o de vod) — Modulo_Twitch §4A.
+	usherLiveBase: 'https://usher.ttvnw.net/api/channel/hls',
 	// ⚠ volátil: a Twitch adiciona hosts com o tempo (TwitchRecover mantém listas).
 	cdnHosts: [
 		'd3fi1amfgojobc.cloudfront.net',

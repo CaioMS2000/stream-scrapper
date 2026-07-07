@@ -77,6 +77,31 @@ test('resolveVodManifest: usher 403 → forbidden', async () => {
 	})
 })
 
+// --- resolveLiveManifest (caminho 3) ---
+test('resolveLiveManifest: streamToken + master → Manifest authenticated', async () => {
+	const t = new TwitchClient(
+		fakeHttp({
+			postJson: async () => ({
+				data: { streamPlaybackAccessToken: { value: 'v', signature: 's' } },
+			}),
+		})
+	)
+	const r = await t.resolveLiveManifest('SomeChannel')
+	expect(r.ok).toBe(true)
+	if (r.ok) {
+		expect(r.manifest.source).toBe('authenticated')
+		expect(r.manifest.variants.length).toBe(2)
+	}
+})
+
+test('resolveLiveManifest: sem token (offline) → not-found', async () => {
+	const t = new TwitchClient(fakeHttp({ postJson: async () => ({ data: {} }) }))
+	expect(await t.resolveLiveManifest('offline')).toEqual({
+		ok: false,
+		error: 'not-found',
+	})
+})
+
 // --- recoverVodManifest (caminho 2): valida o hash OFFLINE ---
 test('recoverVodManifest: acha na CDN pela URL do hash correto', async () => {
 	// valores conhecidos (do recovery.ts) → hash esperado b2fa85c40d5d5513b56a

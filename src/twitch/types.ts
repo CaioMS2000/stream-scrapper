@@ -31,7 +31,7 @@ export type ResolveResult =
 	| { ok: true; manifest: Manifest }
 	| { ok: false; error: ResolveError }
 
-// Contrato público — o downloader acopla nisto (espelha Store/SqliteStore).
+// Contrato público — downloader/recorder acoplam nisto (espelha Store/SqliteStore).
 export interface Twitch {
 	resolveVodManifest(vodId: string): Promise<ResolveResult>
 	recoverVodManifest(
@@ -39,4 +39,6 @@ export interface Twitch {
 		streamId: string,
 		startedAt: number
 	): Promise<ResolveResult>
+	// Caminho 3 (live): token dance com isLive → master do endpoint de canal.
+	resolveLiveManifest(login: string): Promise<ResolveResult>
 }
