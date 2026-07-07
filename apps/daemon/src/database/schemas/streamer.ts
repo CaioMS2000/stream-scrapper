@@ -1,0 +1,23 @@
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const streamersTable = sqliteTable('streamers', {
+	id: text()
+		.primaryKey()
+		.$defaultFn(() => Bun.randomUUIDv7()),
+	login: text().notNull(),
+	displayName: text('display_name').notNull(),
+
+	monitoredSince: integer('monitored_since', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date()),
+
+	autoRecord: integer('auto_record', { mode: 'boolean' })
+		.notNull()
+		.default(false),
+
+	qualityPref: text('quality_pref', {
+		enum: ['best', 'source', '1080p', '720p'],
+	}).notNull(),
+})
+
+export type StreamerModel = typeof streamersTable.$inferSelect

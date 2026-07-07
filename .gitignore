@@ -36,3 +36,9 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# others
+commit-stages.sh
+generate-commit-message-task.md
+git-info-for-commit.sh
+*.txt
