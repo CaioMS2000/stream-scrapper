@@ -7,6 +7,7 @@
     "start": "bun index.ts 2800325069",
     "start:live": "bun live.ts TEHb_twitch",
     "start:record": "bun record.ts",
+    "start:monitor": "bun watch.ts",
     "test": "bun test",
     "prepare": "husky"
   },
