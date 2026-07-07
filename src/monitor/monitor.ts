@@ -115,6 +115,11 @@ export class StreamMonitor implements Monitor {
 			await this.recorder.record(streamId, r.manifest, {
 				quality: s.quality_pref,
 				durationSeconds: this.recordDefaults?.durationSeconds,
+				// re-auth do puller: re-resolve o manifesto live quando o token vence.
+				refresh: () =>
+					this.twitch
+						.resolveLiveManifest(s.login)
+						.then(x => (x.ok ? x.manifest : null)),
 			})
 		} catch (err) {
 			console.error(`[monitor] gravação de ${s.login} falhou:`, err)
