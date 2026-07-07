@@ -19,6 +19,9 @@ export interface RecordingHandle {
 
 export interface CaptureOpts {
 	durationSeconds?: number // corta a captura (essencial p/ sanity de segundos)
+	// Re-auth: devolve uma URL de media playlist FRESCA quando o token vence, ou
+	// null se a live acabou/offline. O SegmentPullerEngine usa; o ffmpeg ignora.
+	refresh?: () => Promise<string | null>
 }
 
 // O motor de captura: escreve o .ts ao vivo e depois remuxa pra .mp4 no finalize.
@@ -35,6 +38,9 @@ export interface CaptureEngine {
 export interface RecordOpts {
 	quality?: string
 	durationSeconds?: number
+	// Re-resolve do manifesto live (o composition root fecha sobre twitch + login).
+	// O recorder deriva daqui o refresh de URL que o motor consome.
+	refresh?: () => Promise<Manifest | null>
 }
 
 // Contrato público do módulo — o composition root/monitor acopla nisto.

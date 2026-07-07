@@ -47,10 +47,23 @@ export class Recorder implements RecorderContract {
 		}
 		this.active.set(rec.id, handle)
 
+		// Deriva o refresh de URL a partir do refresh de Manifest (re-auth do puller):
+		// re-resolve → re-seleciona a MESMA qualidade → nova URL de media playlist.
+		const quality = opts?.quality ?? 'best'
+		const urlRefresh = opts?.refresh
+			? async (): Promise<string | null> => {
+					const m = await opts.refresh?.()
+					return m
+						? TwitchClient.selectQuality(m.variants, quality).mediaPlaylistUrl
+						: null
+				}
+			: undefined
+
 		let captureFailed = false
 		try {
 			await this.engine.capture(variant.mediaPlaylistUrl, tsPath, {
 				durationSeconds: opts?.durationSeconds,
+				refresh: urlRefresh,
 			})
 		} catch {
 			// Não re-lança: parcial-é-melhor-que-nada. Finaliza o .ts antes de marcar.
