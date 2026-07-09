@@ -1,3 +1,8 @@
+import {
+	ChannelAlreadyRegistreError,
+	type ChannelNotFoundError,
+} from '../@errors'
+import { type FailureOf, failure, type Result, success } from '../result'
 import type { Store } from '../store'
 import type { TwitchClient } from '../twitch/client'
 
@@ -15,5 +20,23 @@ export class Engine {
 
 	get store() {
 		return this.props.store
+	}
+
+	async addChannel(
+		channel: string
+	): Promise<Result<ChannelNotFoundError | ChannelAlreadyRegistreError, any>> {
+		const result = await this.twitch.checkChannel(channel)
+
+		if (result.isFailure()) {
+			return failure(result.value)
+		}
+
+		const existingChannel = await this.store.findChannel(channel)
+
+		if (existingChannel === null) {
+			return failure(ChannelAlreadyRegistreError)
+		}
+
+		return success(null)
 	}
 }
