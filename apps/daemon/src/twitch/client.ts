@@ -4,15 +4,19 @@ import { failure, type Result, success } from '../result'
 import { gqlRequest } from './http/gql'
 import { CheckChannelResponse } from './http/schemas'
 
-export class TwitchClient {
-	async checkChannel(
+export interface TwitchClient {
+	checkChannel(
 		login: string
 	): Promise<
 		Result<
 			ChannelNotFoundError,
 			NonNullable<z.infer<typeof CheckChannelResponse>['data']['user']>
 		>
-	> {
+	>
+}
+
+export class TwitchClientImpl implements TwitchClient {
+	async checkChannel(login: string) {
 		const { data } = await gqlRequest({
 			operation: {
 				query:
