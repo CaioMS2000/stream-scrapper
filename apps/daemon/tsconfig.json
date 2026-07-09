@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     // Environment setup & latest features
-    "types": ["@types/bun"],
+    "types": ["@types/bun", "bun-types/test-globals"],
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
