@@ -4,8 +4,9 @@ import { config } from './config'
 import { Engine } from './engine'
 import { IpcServer } from './ipc'
 import { createDrizzle } from './lib/drizzle'
+import { createDatabase } from './lib/sqlite'
 import { Store } from './store'
-import { TwitchClient } from './twitch/client'
+import { TwitchClientImpl } from './twitch/client'
 
 console.log(`daemon started (pid ${process.pid})`)
 async function main() {
@@ -14,9 +15,9 @@ async function main() {
 	mkdirSync(config.dataDir, { recursive: true })
 	const store = new Store({
 		rootPath: config.dataDir,
-		drizzle: createDrizzle(config.databasePath),
+		drizzle: createDrizzle(createDatabase(config.databasePath)),
 	})
-	const twitch = new TwitchClient()
+	const twitch = new TwitchClientImpl()
 	const engine = new Engine({ twitch, store })
 
 	// Camada de IPC: escuta o socket e traduz comandos do CLI em chamadas à

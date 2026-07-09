@@ -10,14 +10,20 @@ export type StoreProps = {
 	drizzle: DrizzleClient
 }
 
+type AddChannelOptionalParams = {
+	qualityPref?: ChannelModel['qualityPref']
+	name: ChannelModel['displayName']
+	autoRecord?: ChannelModel['autoRecord']
+}
+
 export class Store {
 	constructor(private readonly props: StoreProps) {}
 
-	get rootPath() {
+	private get rootPath() {
 		return this.props.rootPath
 	}
 
-	get drizzle() {
+	private get drizzle() {
 		return this.props.drizzle
 	}
 
@@ -29,8 +35,23 @@ export class Store {
 		const record = this.drizzle
 			.select()
 			.from(channelsTable)
-			.where(eq(channelsTable.login, channel))
+			.where(eq(channelsTable.username, channel))
 			.get()
 		return record ?? null
+	}
+
+	async addChannel(
+		channel: string,
+		params?: AddChannelOptionalParams
+	): Promise<ChannelModel> {
+		const qualityPref = params?.qualityPref ?? 'best'
+		const displayName = params?.name ?? channel
+		const autoRecord = params?.autoRecord ?? undefined
+		const record = this.drizzle
+			.insert(channelsTable)
+			.values({ username: channel, qualityPref, displayName, autoRecord })
+			.returning()
+			.get()
+		return record
 	}
 }
