@@ -1,10 +1,10 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-export const streamersTable = sqliteTable('streamers', {
+export const channelsTable = sqliteTable('channels', {
 	id: text()
 		.primaryKey()
 		.$defaultFn(() => Bun.randomUUIDv7()),
-	login: text().notNull(),
+	login: text().notNull().unique(),
 	displayName: text('display_name').notNull(),
 
 	monitoredSince: integer('monitored_since', { mode: 'timestamp' })
@@ -20,4 +20,4 @@ export const streamersTable = sqliteTable('streamers', {
 	}).notNull(),
 })
 
-export type StreamerModel = typeof streamersTable.$inferSelect
+export type ChannelModel = typeof channelsTable.$inferSelect
