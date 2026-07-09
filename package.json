@@ -14,7 +14,6 @@
     "@caioms/biomejs-config": "^1.1.13",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
-    "prettier": "^3.7.4",
     "turbo": "^2.10.4",
     "typescript": "5.9.2"
   },
