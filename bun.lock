@@ -16,8 +16,13 @@
     },
     "apps/cli": {
       "name": "cli",
+      "bin": {
+        "scrapper": "src/index.ts",
+      },
       "dependencies": {
+        "@repo/ipc": "*",
         "commander": "^15.0.0",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -29,6 +34,7 @@
     "apps/daemon": {
       "name": "daemon",
       "dependencies": {
+        "@repo/ipc": "*",
         "dotenv": "^17.4.2",
         "drizzle-orm": "^1.0.0-rc.4",
         "zod": "^4.4.3",
@@ -94,6 +100,16 @@
         "globals": "^16.5.0",
         "typescript": "^5.9.2",
         "typescript-eslint": "^8.50.0",
+      },
+    },
+    "packages/ipc": {
+      "name": "@repo/ipc",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
       },
     },
     "packages/typescript-config": {
@@ -302,6 +318,8 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@repo/eslint-config": ["@repo/eslint-config@workspace:packages/eslint-config"],
+
+    "@repo/ipc": ["@repo/ipc@workspace:packages/ipc"],
 
     "@repo/typescript-config": ["@repo/typescript-config@workspace:packages/typescript-config"],
 
