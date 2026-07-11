@@ -5,9 +5,9 @@ import { Engine } from '../engine'
 import { applyMigrations, createDrizzle } from '../lib/drizzle'
 import { createDatabase } from '../lib/sqlite'
 import { Store } from '../store/store'
-import { type CheckChannelReturn, FakeTwitchClient } from './twitch-client'
+import { FakeTwitchClient, type GetChannelReturn } from './twitch-client'
 
-export function makeEngine(response: CheckChannelReturn) {
+export function makeEngine(response: GetChannelReturn) {
 	const db = createDrizzle(createDatabase(':memory:'))
 	applyMigrations(db)
 	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))

@@ -19,13 +19,18 @@ describe('Engine.addChannel', () => {
 
 	test('canal existe e store vazio → persiste e retorna sucesso', async () => {
 		const { engine, store, rootPath } = makeEngine(
-			success({ id: '1', displayName: 'Lexi', stream: null })
+			success({
+				id: '1',
+				displayName: 'Lexi',
+				profileImageURL: 'https://example.test/lexi.png',
+				stream: null,
+			})
 		)
 
 		const result = await engine.addChannel('lexi')
 
 		expect(result.isSuccess()).toBe(true)
-		expect(result.value).toEqual({ username: 'lexi' })
+		expect(result.value).toEqual({ username: 'lexi', recording: false })
 
 		// efeitos colaterais observáveis
 		const persisted = await store.findChannel('lexi')
@@ -36,7 +41,12 @@ describe('Engine.addChannel', () => {
 
 	test('canal já registrado → falha sem duplicar', async () => {
 		const { engine, store } = makeEngine(
-			success({ id: '1', displayName: 'Lexi', stream: null })
+			success({
+				id: '1',
+				displayName: 'Lexi',
+				profileImageURL: 'https://example.test/lexi.png',
+				stream: null,
+			})
 		)
 
 		await engine.addChannel('lexi') // primeiro cadastro
