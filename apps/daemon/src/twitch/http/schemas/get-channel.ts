@@ -1,6 +1,6 @@
 import z from 'zod'
 
-export const CheckChannelResponse = z.object({
+export const GetChannelResponse = z.object({
 	data: z.object({
 		// `user` é null quando o login não existe (canal inexistente),
 		// diferente de existir e estar offline (`stream` null).
@@ -8,6 +8,7 @@ export const CheckChannelResponse = z.object({
 			.object({
 				id: z.string(),
 				displayName: z.string(),
+				profileImageURL: z.string(),
 				stream: z
 					.object({
 						id: z.string(),

@@ -1,1 +1,2 @@
-export * from './check-channel'
+export * from './get-channel'
+export * from './get-channels'
