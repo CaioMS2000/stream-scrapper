@@ -4,7 +4,7 @@ export const streamTable = sqliteTable('stream', {
 	id: text()
 		.primaryKey()
 		.$defaultFn(() => Bun.randomUUIDv7()),
-	streamerLogin: text('streamer_login').notNull(),
+	channelName: text('channel_name').notNull(),
 	startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
 	title: text().notNull(),
 	game: text().notNull(),

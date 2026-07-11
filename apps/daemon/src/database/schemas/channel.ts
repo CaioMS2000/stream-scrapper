@@ -6,6 +6,7 @@ export const channelsTable = sqliteTable('channels', {
 		.$defaultFn(() => Bun.randomUUIDv7()),
 	username: text().notNull().unique(),
 	displayName: text('display_name').notNull(),
+	profileImageURL: text('profile_image_url'),
 
 	monitoredSince: integer('monitored_since', { mode: 'timestamp' })
 		.notNull()

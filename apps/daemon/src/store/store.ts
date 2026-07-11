@@ -14,6 +14,7 @@ type AddChannelOptionalParams = {
 	qualityPref?: ChannelModel['qualityPref']
 	name: ChannelModel['displayName']
 	autoRecord?: ChannelModel['autoRecord']
+	profileImageURL?: ChannelModel['profileImageURL']
 }
 
 export class Store {
