@@ -16,6 +16,8 @@ export const channelsTable = sqliteTable('channels', {
 		.notNull()
 		.default(false),
 
+	isLive: integer('is_live', { mode: 'boolean' }).notNull().default(false),
+
 	qualityPref: text('quality_pref', {
 		enum: ['best', 'source', '1080p', '720p'],
 	}).notNull(),
