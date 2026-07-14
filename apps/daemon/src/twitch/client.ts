@@ -33,7 +33,7 @@ export class TwitchClientImpl implements TwitchClient {
 		const { data } = await gqlRequest({
 			operation: {
 				query:
-					'query($login: String!) { user(login: $login) { id displayName profileImageURL(width: 600) stream { id title } } }',
+					'query($login: String!) { user(login: $login) { id displayName profileImageURL(width: 600) stream { id title createdAt } } }',
 				variables: { login },
 			},
 			schema: GetChannelResponse,
@@ -57,7 +57,7 @@ export class TwitchClientImpl implements TwitchClient {
 							login
 							displayName
 							profileImageURL(width: 300)
-							stream { id title }
+							stream { id title createdAt }
 						}
 					}
 				`,

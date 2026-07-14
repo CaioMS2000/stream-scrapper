@@ -13,6 +13,9 @@ export const GetChannelResponse = z.object({
 					.object({
 						id: z.string(),
 						title: z.string(),
+						// Twitch entrega ISO 8601 (ex: "2026-07-14T02:04:03Z");
+						// transform pra Date na borda pra consumidores usarem direto.
+						createdAt: z.string().transform(s => new Date(s)),
 					})
 					.nullable(),
 			})
