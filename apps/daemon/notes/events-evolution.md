@@ -182,6 +182,172 @@ saber quem chamar.
 - Cross-process (aí você quer message queue de verdade tipo Redis Pub/Sub,
   RabbitMQ, Kafka — bus in-memory não resolve)
 
+## Emitter vs EventBus: comparação prática lado a lado
+
+Um erro comum é ler "Estágio 2 → Estágio 3" e concluir que Bus é sempre "mais
+poderoso" e Emitter é só "temporário". Não é bem assim — os dois operam em
+planos diferentes e cada um vence em cenários distintos. Esta seção compara
+com código concreto.
+
+### Modelo mental
+
+- **Emitter é um cano.** Um pipe direto entre um produtor e seus assinantes.
+  Simples, tipado, óbvio. Quem quer escutar precisa ter referência ao dono
+  do cano.
+- **EventBus é uma central telefônica.** Vários produtores publicam, vários
+  consumidores escutam, roteamento por número (tipo do evento). Mais poder,
+  mais opacidade, requer disciplina.
+
+### O que EventBus faz que Emitter não faz
+
+#### 1. Consumidor não precisa conhecer o produtor
+
+Com Emitter, pra escutar você **precisa** da referência ao produtor:
+
+```ts
+monitor.on(handler)  // preciso ter 'monitor' em escopo
+```
+
+Com Bus, você conhece só a classe do evento — nem precisa saber que existe
+um `ChannelMonitor` no sistema:
+
+```ts
+bus.subscribe(ChannelLiveEvent, handler)  // nem sei quem publica isso
+```
+
+Isso permite módulos "plug-in" que se inscrevem sem tocar em `main.ts` nem
+receber injeção do produtor.
+
+#### 2. Múltiplos produtores emitindo o mesmo tipo de evento
+
+Cenário: tanto Monitor quanto Recorder publicam `TelemetryEvent` (genérico
+"algo relevante aconteceu"). Consumidor único que registra todos.
+
+Com Emitters (impossível compartilhar tipo entre produtores diferentes):
+
+```ts
+// Cada produtor tem seu Emitter<TipoEspecífico> — tipos incompatíveis
+monitor.on(handleTelemetry)   // recebe MonitorEvent
+recorder.on(handleTelemetry)  // recebe RecorderEvent
+// Consumidor tem que amarrar nos dois E lidar com tipos diferentes
+```
+
+Com Bus (o mesmo handler recebe dos dois):
+
+```ts
+bus.subscribe(TelemetryEvent, handleTelemetry)
+// Monitor faz: await bus.publish(new TelemetryEvent(...))
+// Recorder faz: await bus.publish(new TelemetryEvent(...))
+// Handler recebe dos dois, sem saber quem publicou
+```
+
+#### 3. Cross-cutting concerns: "escuta tudo"
+
+Cenário: logger central que registra todo evento do daemon.
+
+Com Emitters, precisa amarrar em cada produtor manualmente:
+
+```ts
+monitor.on(e => logger.log('monitor', e))
+recorder.on(e => logger.log('recorder', e))
+store.on(e => logger.log('store', e))
+// Adicionou produtor X? Tem que lembrar de wire aqui — bug latente.
+```
+
+Com Bus, uma linha catch-all:
+
+```ts
+bus.subscribe(Event, e => logger.log(e))  // Event = classe raiz
+// Novo produtor publicando no bus → logger vê automaticamente.
+```
+
+Mesma lógica pra métricas Prometheus, audit trail persistente, etc.
+
+#### 4. Roteamento por tipo do evento
+
+Emitter emite tudo pra **todos** os listeners inscritos — filtragem é
+responsabilidade do handler:
+
+```ts
+monitor.on(e => {
+  if (e.type === 'live') handleLive(e)
+  else handleOffline(e)  // handler filtra na entrada
+})
+```
+
+Bus roteia por identidade do tipo — cada handler só recebe o que assinou:
+
+```ts
+bus.subscribe(ChannelLiveEvent, handleLive)        // só live chega aqui
+bus.subscribe(ChannelOfflineEvent, handleOffline)  // só offline aqui
+```
+
+### O que Emitter faz melhor que EventBus
+
+Não é lista curta pra dar "peso equivalente" — são vantagens reais que fazem
+Emitter continuar sendo a escolha certa em muitos cenários mesmo depois que
+Bus estiver disponível no projeto.
+
+#### 1. Ownership claro na leitura do código
+
+Cada produtor tem seu Emitter. Lendo `ChannelMonitor`, você **vê** o Emitter
+como campo/prop — sabe imediatamente que ele emite eventos. Com Bus, produtor
+chama `bus.publish(...)` como um método qualquer, e você precisa procurar
+essas chamadas pra mapear quem publica o quê.
+
+#### 2. Type safety sem magic de runtime
+
+`Emitter<MonitorEvent>` é tipado no compilador — TS sabe o shape exato,
+tagged union narrowing funciona automático dentro de handlers, refactor
+seguro.
+
+Bus roteia por `event.constructor` como chave em `Map`. Isso força:
+
+- Eventos serem **classes** (não interfaces — interfaces somem em runtime
+  e não têm constructor identity)
+- Casts internos `handler as (e: any) => void` pra guardar handlers
+  heterogêneos no mesmo Map
+- Narrowing por tipo mais frágil e verboso
+
+Funciona, mas TS "trabalha menos" — mais chance de bug passar despercebido.
+
+#### 3. Traceabilidade com IDE
+
+`Cmd+Click` no `.on()` de um Emitter te leva à assinatura, e "Find All
+References" mostra quem chama. Com Bus:
+
+- `bus.subscribe(SomeEvent, ...)` pode estar em N arquivos
+- Grep pela classe do evento, filtrar por chamadas de subscribe
+- IDE ajuda menos porque é dispatch dinâmico
+
+Não é impossível, é só mais custoso.
+
+#### 4. Zero estado global mutável
+
+Cada Emitter é escopado à sua classe dona. Vazamentos, listeners esquecidos,
+comportamento inesperado — tudo isolado. Bus é objeto compartilhado: um
+handler mal comportado que adiciona listeners em loop afeta todo mundo.
+
+### Tabela decisiva
+
+| Cenário | Escolha certa |
+|---|---|
+| 1-to-N (um produtor conhecido, consumidor específico) | **Emitter** |
+| N-to-1 (poucos produtores conhecidos, consumidor único) | **Emitter** |
+| N-to-N com produtores/consumidores anônimos entre si | **Bus** |
+| Cross-cutting (logger, métrica, audit escutando tudo) | **Bus** |
+| Plugin system / auto-registro dinâmico | **Bus** |
+| Consumidor auto-inscrito sem tocar em `main.ts` | **Bus** |
+| Fluxo linear e conhecido (Monitor → Recorder e mais nada) | **Emitter** |
+
+### Resumindo
+
+Emitter e Bus não são "simples" e "complexo" da mesma escala — são
+ferramentas com propósito diferente. Bus **não deprecia** Emitter; ele
+resolve um problema (N-to-N desacoplado) que Emitter deliberadamente não
+resolve pra manter as vantagens acima. Num daemon maduro, os dois podem
+coexistir: Emitters locais pra fluxos diretos + Bus pra cross-cutting.
+
 ## O que mantém a migração barata
 
 **A superfície pública do consumidor não muda entre os estágios.**
