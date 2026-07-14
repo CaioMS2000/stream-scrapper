@@ -17,6 +17,10 @@ type AddChannelOptionalParams = {
 	profileImageURL?: ChannelModel['profileImageURL']
 }
 
+type ChannelUpdateParams = Partial<Omit<ChannelModel, 'id'>> & {
+	id: ChannelModel['id']
+}
+
 export class Store {
 	constructor(private readonly props: StoreProps) {}
 
@@ -54,5 +58,28 @@ export class Store {
 			.returning()
 			.get()
 		return record
+	}
+
+	async updateChannel(channel: ChannelUpdateParams): Promise<ChannelModel> {
+		const [firstRecord] = await this.drizzle
+			.update(channelsTable)
+			.set({
+				qualityPref: channel.qualityPref,
+				displayName: channel.displayName,
+				autoRecord: channel.autoRecord,
+				isLive: channel.isLive,
+			})
+			.where(eq(channelsTable.id, channel.id))
+			.returning()
+
+		if (!firstRecord) {
+			throw new Error(`PANIC! Channel with id ${channel.id} failed to update!`)
+		}
+
+		return firstRecord
+	}
+
+	async getAllChannels(): Promise<ChannelModel[]> {
+		return this.drizzle.select().from(channelsTable).all()
 	}
 }
