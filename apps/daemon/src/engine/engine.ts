@@ -1,6 +1,6 @@
 import { ChannelAlreadyRegisteredError, ChannelNotFoundError } from '../@errors'
 import type { MediaStorage } from '../media-storage'
-import type { ChannelLiveEvent } from '../monitor/@events'
+import type { ChannelLiveEvent, ChannelOfflineEvent } from '../monitor/@events'
 import type { TwitchRecorder } from '../recorder'
 import type { ChannelRepository, StreamRepository } from '../repositories'
 import { failure, type Result, success } from '../result'
@@ -72,9 +72,7 @@ export class Engine {
 	// (persistir stream + disparar recorder) em chamadas síncronas — não
 	// delega pra event handler pra evitar silêncio em falha (ver
 	// notes/speculation-early-recorder-invariants-vs-reactions.md).
-	async onStreamStarted(
-		event: Extract<ChannelLiveEvent, { type: 'live' }>
-	): Promise<void> {
+	async onStreamStarted(event: ChannelLiveEvent): Promise<void> {
 		try {
 			// Nota: hoje o evento só carrega username + startedAt. Pra usar
 			// title/category/streamId de verdade, MonitorEvent precisa ser
@@ -102,9 +100,7 @@ export class Engine {
 
 	// Handler do evento 'offline'. Ordena o Recorder a parar; futuramente
 	// também atualizará endedAt no stream row.
-	async onStreamEnded(
-		event: Extract<ChannelLiveEvent, { type: 'offline' }>
-	): Promise<void> {
+	async onStreamEnded(event: ChannelOfflineEvent): Promise<void> {
 		try {
 			await this.props.recorder.stopStream(event.username)
 		} catch (error) {

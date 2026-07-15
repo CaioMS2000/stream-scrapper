@@ -1,41 +1,34 @@
 import type { ChannelRepository } from '@/repositories'
-import { Emitter } from '../@shared/events'
+import type { EventBus } from '../@shared/events'
 import type { Optional } from '../@shared/types'
 import type { TwitchClient } from '../twitch/client'
-import type { ChannelLiveEvent } from './@events'
-import type { MonitorListener } from './type'
+import { ChannelLiveEvent, ChannelOfflineEvent } from './@events'
 
 export type ChannelMonitorProps = {
 	intervalMs: number
 	twitch: TwitchClient
 	channelRepository: ChannelRepository
 	/**
-	 * Emitter dedicado deste Monitor. Vem por injeção pra manter uniforme com
-	 * as outras dependências (twitch, store) — decisão consciente aceitando o
-	 * custo de cerimônia na composição/teste.
+	 * Bus central compartilhado por todo o daemon. Monitor publica eventos
+	 * aqui; consumidores (Engine, futuros webhooks/métricas/audit) assinam
+	 * as classes que interessam.
 	 *
-	 * ⚠️ **NUNCA compartilhe a mesma instância entre classes emissoras** —
-	 * cada emissor (Monitor, Recorder, etc.) deve ter a sua própria. Se você
-	 * sentir necessidade de compartilhar (ex: "quero um handler central que
-	 * escute vários produtores sem depender de cada um"), isso é sinal pra
-	 * promover pro Estágio 3 (EventBus central) descrito em
-	 * `notes/events-evolution.md` — NÃO tentar contornar reusando Emitter.
+	 * Diferente do padrão Emitter anterior — aqui **a mesma instância é
+	 * intencionalmente compartilhada** entre todos os produtores/consumidores
+	 * do daemon. Só uma `new EventBus()` no `main.ts`.
 	 */
-	events: Emitter<ChannelLiveEvent>
+	bus: EventBus
 }
 
 export type ChannelMonitorConstructorProps = Optional<
 	ChannelMonitorProps,
-	'intervalMs' | 'events'
+	'intervalMs'
 >
 
 function makeDefaultProps() {
-	const DEFAULT_PROPS = {
+	return {
 		intervalMs: 30_000,
-		events: new Emitter<ChannelLiveEvent>('monitor'),
-	} as const
-
-	return DEFAULT_PROPS
+	}
 }
 
 export class ChannelMonitor {
@@ -44,10 +37,6 @@ export class ChannelMonitor {
 
 	constructor(props: ChannelMonitorConstructorProps) {
 		this.props = { ...makeDefaultProps(), ...props }
-	}
-
-	on(listener: MonitorListener) {
-		this.props.events.on(listener)
 	}
 
 	async startMonitoring() {
@@ -97,17 +86,11 @@ export class ChannelMonitor {
 				isLive,
 			})
 			if (startedAt !== undefined) {
-				await this.props.events.emit({
-					type: 'live',
-					username: channel.username,
-					startedAt,
-				})
+				await this.props.bus.publish(
+					new ChannelLiveEvent(channel.username, startedAt)
+				)
 			} else {
-				await this.props.events.emit({
-					type: 'offline',
-					username: channel.username,
-					at: new Date(),
-				})
+				await this.props.bus.publish(new ChannelOfflineEvent(channel.username))
 			}
 		}
 

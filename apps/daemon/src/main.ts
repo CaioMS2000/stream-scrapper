@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { resolveSocketPath } from '@repo/ipc'
+import { EventBus } from './@shared/events'
 import { config } from './config'
 import {
 	DrizzleChannelRepository,
@@ -10,7 +11,11 @@ import { IpcServer } from './ipc'
 import { applyMigrations, createDrizzle } from './lib/drizzle'
 import { createDatabase } from './lib/sqlite'
 import { MediaStorage } from './media-storage'
-import { ChannelMonitor } from './monitor'
+import {
+	ChannelLiveEvent,
+	ChannelMonitor,
+	ChannelOfflineEvent,
+} from './monitor'
 import { StreamRecorder } from './recorder'
 import { TwitchClientImpl } from './twitch/client'
 
@@ -24,6 +29,10 @@ async function main() {
 	// Infra ────────────────────────────────────────────────────────────────
 	const db = createDrizzle(createDatabase(config.databasePath))
 	applyMigrations(db)
+
+	// Bus central — uma única instância compartilhada por todos os
+	// produtores/consumidores de eventos do daemon.
+	const bus = new EventBus()
 
 	// Persistência ─────────────────────────────────────────────────────────
 	const storage = new MediaStorage({ rootPath: config.dataDir })
@@ -45,26 +54,21 @@ async function main() {
 		recorder,
 	})
 
-	// Detector — Emitter próprio criado pelo default (não compartilhado).
-	// Ver JSDoc em ChannelMonitorProps.events.
+	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
 		twitch,
 		channelRepository,
+		bus,
 	})
 
 	// ═════════════════════════════════════════════════════════════════════
-	// A PONTE Monitor → Engine (via evento)
-	// Este listener é o único ponto onde Monitor e Engine se cruzam.
-	// Monitor não conhece Engine; Engine não conhece Monitor. `main.ts` é
-	// o "carteiro" que amarra os dois via a shape do evento.
+	// A PONTE Monitor → Engine (via bus)
+	// Monitor publica ChannelLiveEvent/ChannelOfflineEvent; Engine se
+	// inscreveu abaixo pra reagir. Adicionar novo consumidor (webhook,
+	// métrica, audit) = mais linhas aqui, zero mudança em Monitor.
 	// ═════════════════════════════════════════════════════════════════════
-	monitor.on(async event => {
-		if (event.type === 'live') {
-			await engine.onStreamStarted(event)
-		} else {
-			await engine.onStreamEnded(event)
-		}
-	})
+	bus.subscribe(ChannelLiveEvent, event => engine.onStreamStarted(event))
+	bus.subscribe(ChannelOfflineEvent, event => engine.onStreamEnded(event))
 
 	monitor.startMonitoring()
 
