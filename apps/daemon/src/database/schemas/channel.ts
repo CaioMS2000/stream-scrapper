@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { StreamQuality } from '@/models/types'
 
 export const channelsTable = sqliteTable('channels', {
 	id: text()
@@ -19,8 +20,8 @@ export const channelsTable = sqliteTable('channels', {
 	isLive: integer('is_live', { mode: 'boolean' }).notNull().default(false),
 
 	qualityPref: text('quality_pref', {
-		enum: ['best', 'source', '1080p', '720p'],
+		enum: StreamQuality,
 	}).notNull(),
 })
 
-export type ChannelModel = typeof channelsTable.$inferSelect
+export type DrizzleChannelModel = typeof channelsTable.$inferSelect
