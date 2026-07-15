@@ -1,0 +1,27 @@
+import type { DrizzleClient } from '@/lib/drizzle'
+import type { ChannelModel } from '@/models'
+
+export type ChannelRepositoryProps = {
+	drizzle: DrizzleClient
+}
+
+export type AddChannelOptionalParams = {
+	qualityPref?: ChannelModel['qualityPref']
+	name: ChannelModel['displayName']
+	autoRecord?: ChannelModel['autoRecord']
+	profileImageURL?: ChannelModel['profileImageURL']
+}
+
+export type ChannelUpdateParams = Partial<Omit<ChannelModel, 'id'>> & {
+	id: ChannelModel['id']
+}
+
+export interface ChannelRepository {
+	findChannel(channel: string): Promise<ChannelModel | null>
+	addChannel(
+		channel: string,
+		params?: AddChannelOptionalParams
+	): Promise<ChannelModel>
+	updateChannel(channel: ChannelUpdateParams): Promise<ChannelModel>
+	getAllChannels(): Promise<ChannelModel[]>
+}
