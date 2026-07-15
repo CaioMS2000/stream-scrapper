@@ -370,28 +370,43 @@ não custa refactor grande quando migrar amanhã — só troca o miolo do
 | Rede multi-produtor/multi-consumer, consumidores anônimos | **3 (EventBus)** |
 | Cross-process, garantia de entrega, retry | **fora do escopo in-memory** — usar MQ |
 
-Traduzindo pro daemon hoje: **Estágio 2**. Existe um `Emitter<T>` genérico
-compartilhado em `@shared/events`, e o `ChannelMonitor` **recebe** um
-`Emitter<MonitorEvent>` por injeção no construtor (junto com `twitch` e
-`store`). Foi promoção antecipada — motivada pela expectativa próxima do
-Recorder também emitir eventos próprios, então quando ele chegar já herda o
-utilitário sem refactor.
+Traduzindo pro daemon hoje: **Estágio 3**. Existe um `EventBus` central em
+`@shared/events`, uma única instância criada em `main.ts` e injetada nos
+produtores (hoje só o Monitor; futuro Recorder herda o mesmo bus). Consumers
+assinam por classe de evento: `bus.subscribe(ChannelLiveEvent, handler)`.
 
-**Convenção de injeção (decisão consciente):** o Emitter poderia ser
-instanciado internamente pela própria classe (`new Emitter()` como campo
-privado). Escolhemos injetar por consistência com as outras dependências,
-aceitando o custo de cerimônia extra na composição e nos testes. A
-contrapartida da injeção é uma **regra rígida**: **nunca compartilhar a
-mesma instância de Emitter entre classes emissoras**. Cada Monitor, Recorder,
-etc. tem a sua. Se sentir vontade de reusar uma instância entre produtores,
-isso é sinal pra promover pro Estágio 3, NÃO pra contornar a convenção.
+**Por que promovemos do Estágio 2 pro 3:**
 
-Estágio 3 (EventBus central) só entra em pauta quando aparecer o cenário
-"quero escutar eventos de vários produtores sem depender de cada um deles" —
-hoje ainda não é o caso.
+1. **Boilerplate de discriminação repetido em cada handler.** Com Emitter e
+   tagged union, todo handler que só se importa com um subtipo precisa fazer
+   `if (event.type === 'live') ...` no início. Com Bus por classe, cada
+   handler recebe só o tipo que assinou — filtragem sai do produtor pro
+   dispatcher.
+2. **Múltiplos consumidores heterogêneos previstos.** Além do Engine, vem
+   Discord webhook, métrica, audit trail. Com Emitter, cada um vira uma
+   chamada `monitor.on(...)` e todos recebem todos os eventos. Com Bus,
+   subscribe por classe é 1 linha por par (handler, evento).
+3. **Recorder também vai emitir eventos.** Quando ele publicar
+   `RecordingStartedEvent`, `RecordingFinishedEvent` etc, o Bus já centraliza
+   — evita "N produtores conhecidos entre si" que Emitter empurra.
+
+**Trade-offs aceitos:**
+
+- Perde exhaustive checking do tagged union — se um novo tipo de evento
+  aparecer, o TS não te obriga a tratar (só se você escrever handler que
+  precisa dele)
+- Perde `Cmd+Click` do consumer pro producer — rastreabilidade agora é grep
+  por `bus.subscribe(ClasseX, ...)`
+- Estado global mutável (o bus é compartilhado) — vazamentos afetam todo o
+  daemon; disciplina obrigatória
+
+**Base `Event` compartilhada:** todo evento implementa `Event` com
+`occurredAt: Date`. Habilita handlers cross-cutting (logger, audit, métrica)
+que só precisam do timestamp comum, sem depender do shape específico.
 
 ## Referências no código
 
-- **Utilitário compartilhado** (Estágio 2): [apps/daemon/src/@shared/events/emitter.ts](../src/@shared/events/emitter.ts) — `Emitter<T>`, `Listener<T>`
-- **Uso atual** (Monitor recebendo Emitter via DI): [apps/daemon/src/monitor/monitor.ts](../src/monitor/monitor.ts) — `ChannelMonitorProps.events: Emitter<MonitorEvent>` com JSDoc reforçando a regra do "não compartilhar"
-- **Tipo dos eventos do Monitor**: [apps/daemon/src/monitor/type.ts](../src/monitor/type.ts) — `MonitorEvent`, `MonitorListener`
+- **Utilitário compartilhado** (Estágio 3): [apps/daemon/src/@shared/events/event-bus.ts](../src/@shared/events/event-bus.ts) — `EventBus`, `Event`
+- **Eventos do Monitor**: [apps/daemon/src/monitor/@events/channel-live.ts](../src/monitor/@events/channel-live.ts) — `ChannelLiveEvent`, `ChannelOfflineEvent` (classes implementando `Event`)
+- **Uso pelo Monitor**: [apps/daemon/src/monitor/monitor.ts](../src/monitor/monitor.ts) — `ChannelMonitorProps.bus: EventBus`, publica com `bus.publish(new ClasseEvento(...))`
+- **Wiring central**: [apps/daemon/src/main.ts](../src/main.ts) — `new EventBus()` + `bus.subscribe(ClasseEvento, handler)` por classe
