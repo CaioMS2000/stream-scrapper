@@ -38,6 +38,7 @@ yarn-error.log*
 *.pem
 
 # others
+.vscode
 commit-stages.sh
 generate-commit-message-task.md
 git-info-for-commit.sh

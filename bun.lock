@@ -34,6 +34,7 @@
       "name": "daemon",
       "dependencies": {
         "@repo/ipc": "*",
+        "dayjs": "^1.11.21",
         "dotenv": "^17.4.2",
         "drizzle-orm": "^1.0.0-rc.4",
         "zod": "^4.4.3",
@@ -170,6 +171,8 @@
     "commander": ["commander@15.0.0", "", {}, "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg=="],
 
     "daemon": ["daemon@workspace:apps/daemon"],
+
+    "dayjs": ["dayjs@1.11.21", "", {}, "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA=="],
 
     "dotenv": ["dotenv@17.4.2", "", {}, "sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw=="],
 

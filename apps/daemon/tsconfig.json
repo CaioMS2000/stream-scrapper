@@ -25,7 +25,14 @@
 		// Some stricter flags (disabled by default)
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
-		"noPropertyAccessFromIndexSignature": false
+		"noPropertyAccessFromIndexSignature": false,
+
+		// Paths
+		"baseUrl": ".",
+		"paths": {
+		"@/*": ["./src/*"],
+		"[ROOT]/*": ["./*"]
+		}
 	},
 	"exclude": ["node_modules", "data", "**/live_*.ts"]
 }
