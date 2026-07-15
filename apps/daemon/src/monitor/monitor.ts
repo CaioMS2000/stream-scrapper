@@ -1,13 +1,14 @@
+import type { ChannelRepository } from '@/repositories'
 import { Emitter } from '../@shared/events'
 import type { Optional } from '../@shared/types'
-import type { Store } from '../store'
 import type { TwitchClient } from '../twitch/client'
-import type { MonitorEvent, MonitorListener } from './type'
+import type { ChannelLiveEvent } from './@events'
+import type { MonitorListener } from './type'
 
 export type ChannelMonitorProps = {
 	intervalMs: number
 	twitch: TwitchClient
-	store: Store
+	channelRepository: ChannelRepository
 	/**
 	 * Emitter dedicado deste Monitor. Vem por injeção pra manter uniforme com
 	 * as outras dependências (twitch, store) — decisão consciente aceitando o
@@ -20,7 +21,7 @@ export type ChannelMonitorProps = {
 	 * promover pro Estágio 3 (EventBus central) descrito em
 	 * `notes/events-evolution.md` — NÃO tentar contornar reusando Emitter.
 	 */
-	events: Emitter<MonitorEvent>
+	events: Emitter<ChannelLiveEvent>
 }
 
 export type ChannelMonitorConstructorProps = Optional<
@@ -31,7 +32,7 @@ export type ChannelMonitorConstructorProps = Optional<
 function makeDefaultProps() {
 	const DEFAULT_PROPS = {
 		intervalMs: 30_000,
-		events: new Emitter<MonitorEvent>('monitor'),
+		events: new Emitter<ChannelLiveEvent>('monitor'),
 	} as const
 
 	return DEFAULT_PROPS
@@ -67,7 +68,7 @@ export class ChannelMonitor {
 	}
 
 	private async checkOnLiveChannels() {
-		const channels = await this.props.store.getAllChannels()
+		const channels = await this.props.channelRepository.getAllChannels()
 		if (channels.length === 0) return
 
 		const usernames = channels.map(c => c.username)
@@ -91,7 +92,10 @@ export class ChannelMonitor {
 			const isLive = startedAt !== undefined
 			if (wasLive === isLive) continue
 
-			await this.props.store.updateChannel({ id: channel.id, isLive })
+			await this.props.channelRepository.updateChannel({
+				id: channel.id,
+				isLive,
+			})
 			if (startedAt !== undefined) {
 				await this.props.events.emit({
 					type: 'live',
