@@ -4,13 +4,28 @@ import type { Event } from '@/@shared/events'
 // "quando detectamos". Pra live longa, útil pra saber duração real.
 // `occurredAt` (da base Event) é quando o evento nasceu no daemon — útil
 // pra rastrear latência entre a live começar e a gente notar.
+type ChannelLiveEventData = {
+	username: string
+	title: string
+	startedAt: Date
+}
+
 export class ChannelLiveEvent implements Event {
 	readonly occurredAt = new Date()
 
-	constructor(
-		readonly username: string,
-		readonly startedAt: Date
-	) {}
+	constructor(private readonly data: ChannelLiveEventData) {}
+
+	get username() {
+		return this.data.username
+	}
+
+	get title() {
+		return this.data.title
+	}
+
+	get startedAt() {
+		return this.data.startedAt
+	}
 }
 
 // Twitch não expõe "quando o stream terminou". O `occurredAt` da base já é

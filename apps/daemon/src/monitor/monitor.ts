@@ -64,30 +64,37 @@ export class ChannelMonitor {
 		const result = await this.props.twitch.getChannels(usernames)
 		const { users, notFoundUsers } = result.value
 
-		// Map login → startedAt do próprio Twitch (`stream.createdAt`). Quem não
-		// está no map é offline (ou não existe mais — notFoundUsers cai no mesmo
-		// balde).
-		const liveNow = new Map<string, Date>()
+		// Map login → snapshot do stream do próprio Twitch (`createdAt` + `title`).
+		// Quem não está no map é offline (ou não existe mais — notFoundUsers cai
+		// no mesmo balde).
+		const liveNow = new Map<string, { startedAt: Date; title: string }>()
 		for (const user of users) {
 			if (user.stream !== null) {
-				liveNow.set(user.login.toLowerCase(), user.stream.createdAt)
+				liveNow.set(user.login.toLowerCase(), {
+					startedAt: user.stream.createdAt,
+					title: user.stream.title,
+				})
 			}
 		}
 
 		// Compara estado armazenado vs atual, age só nas transições.
 		for (const channel of channels) {
 			const wasLive = channel.isLive
-			const startedAt = liveNow.get(channel.username.toLowerCase())
-			const isLive = startedAt !== undefined
+			const liveInfo = liveNow.get(channel.username.toLowerCase())
+			const isLive = liveInfo !== undefined
 			if (wasLive === isLive) continue
 
 			await this.props.channelRepository.updateChannel({
 				id: channel.id,
 				isLive,
 			})
-			if (startedAt !== undefined) {
+			if (liveInfo !== undefined) {
 				await this.props.bus.publish(
-					new ChannelLiveEvent(channel.username, startedAt)
+					new ChannelLiveEvent({
+						username: channel.username,
+						startedAt: liveInfo.startedAt,
+						title: liveInfo.title,
+					})
 				)
 			} else {
 				await this.props.bus.publish(new ChannelOfflineEvent(channel.username))
