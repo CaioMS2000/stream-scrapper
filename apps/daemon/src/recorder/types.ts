@@ -7,7 +7,9 @@ export interface RecordingHandle {
 }
 
 type RecordTwitchStreamParams = {
+	filePath: string
 	channelName: string
+	title: string
 	streamId: string
 	startedAt: Date
 }

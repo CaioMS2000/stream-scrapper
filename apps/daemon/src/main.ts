@@ -42,8 +42,12 @@ async function main() {
 	// Serviços externos ────────────────────────────────────────────────────
 	const twitch = new TwitchClientImpl()
 
-	// Executor de gravação (stub por enquanto)
-	const recorder = new StreamRecorder({ twitch, storage })
+	// Executor de gravação — spawna streamlink por canal via child process.
+	const recorder = new StreamRecorder({
+		twitch,
+		storage,
+		streamlinkBinPath: config.streamlinkBinPath,
+	})
 
 	// Orquestrador — recebe todas as peças que ele coordena
 	const engine = new Engine({
@@ -84,6 +88,9 @@ async function main() {
 		const shutdown = async (signal: NodeJS.Signals) => {
 			console.log(`\nreceived ${signal}, shutting down...`)
 			monitor.stop()
+			// Para todos os streamlink filhos ANTES do IPC — evita deixar
+			// child process órfão se o kernel bater no daemon logo depois.
+			await recorder.stopAll()
 			// Fecha o listener e remove o arquivo de socket pra não deixar órfão.
 			await ipc.close()
 			resolve()

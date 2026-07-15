@@ -22,10 +22,16 @@ export function makeEngine(response: GetChannelReturn) {
 	const streamRepository = new DrizzleStreamRepository({ drizzle: db })
 	const twitch = new FakeTwitchClient(response)
 
-	// StreamRecorder é stub — não faz nada real, ok pra testes de Engine.
-	// Se algum teste precisar assertar chamadas específicas, promover pra
-	// FakeRecorder que registra invocations.
-	const recorder = new StreamRecorder({ twitch, storage })
+	// StreamRecorder aqui é real, mas nenhum teste de Engine.addChannel
+	// dispara `recordTwitchStream` — então o streamlink nunca é spawned e
+	// `streamlinkBinPath` pode ser um placeholder. Se algum dia um teste
+	// precisar assertar chamadas específicas, promover pra FakeRecorder
+	// que registra invocations.
+	const recorder = new StreamRecorder({
+		twitch,
+		storage,
+		streamlinkBinPath: '/nonexistent/streamlink-test-placeholder',
+	})
 
 	const engine = new Engine({
 		twitch,
