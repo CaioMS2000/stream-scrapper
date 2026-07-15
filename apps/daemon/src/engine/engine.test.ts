@@ -18,7 +18,7 @@ describe('Engine.addChannel', () => {
 	})
 
 	test('canal existe e store vazio → persiste e retorna sucesso', async () => {
-		const { engine, store, rootPath } = makeEngine(
+		const { engine, channelRepository, rootPath } = makeEngine(
 			success({
 				id: '1',
 				displayName: 'Lexi',
@@ -33,14 +33,14 @@ describe('Engine.addChannel', () => {
 		expect(result.value).toEqual({ username: 'lexi', recording: false })
 
 		// efeitos colaterais observáveis
-		const persisted = await store.findChannel('lexi')
+		const persisted = await channelRepository.findChannel('lexi')
 		expect(persisted?.username).toBe('lexi')
 		expect(persisted?.displayName).toBe('Lexi')
 		expect(existsSync(join(rootPath, 'lexi'))).toBe(true)
 	})
 
 	test('canal já registrado → falha sem duplicar', async () => {
-		const { engine, store } = makeEngine(
+		const { engine, channelRepository } = makeEngine(
 			success({
 				id: '1',
 				displayName: 'Lexi',
@@ -56,7 +56,7 @@ describe('Engine.addChannel', () => {
 		expect(result.value).toBeInstanceOf(ChannelAlreadyRegisteredError)
 
 		// continua com apenas um registro
-		const persisted = await store.findChannel('lexi')
+		const persisted = await channelRepository.findChannel('lexi')
 		expect(persisted).not.toBeNull()
 	})
 })
