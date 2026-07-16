@@ -1,24 +1,43 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ChannelAlreadyRegisteredError, ChannelNotFoundError } from '../@errors'
-import { failure, success } from '../result'
-import { makeEngine } from '../test/engine'
+import {
+	ChannelAlreadyRegisteredError,
+	ChannelNotFoundError,
+} from '../../@errors'
+import { MediaStorage } from '../../infrastructure/media-storage'
+import { failure, success } from '../../result'
+import { makeTestDb } from '../../test/db'
+import {
+	FakeTwitchClient,
+	type GetChannelReturn,
+} from '../../test/twitch-client'
+import { AddChannelUseCase } from './add-channel'
 
-describe('Engine.addChannel', () => {
+function makeUseCase(response: GetChannelReturn) {
+	const { channelRepository } = makeTestDb()
+	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))
+	const storage = new MediaStorage({ rootPath })
+	const twitch = new FakeTwitchClient(response)
+	const useCase = new AddChannelUseCase({ twitch, channelRepository, storage })
+	return { useCase, channelRepository, storage, rootPath }
+}
+
+describe('AddChannelUseCase', () => {
 	test('twitch retorna not found → propaga ChannelNotFoundError', async () => {
-		const { engine } = makeEngine(
+		const { useCase } = makeUseCase(
 			failure(new ChannelNotFoundError('doesnotexist'))
 		)
 
-		const result = await engine.addChannel('doesnotexist')
+		const result = await useCase.execute({ channelName: 'doesnotexist' })
 
 		expect(result.isFailure()).toBe(true)
 		expect(result.value).toBeInstanceOf(ChannelNotFoundError)
 	})
 
 	test('canal existe e store vazio → persiste e retorna sucesso', async () => {
-		const { engine, channelRepository, rootPath } = makeEngine(
+		const { useCase, channelRepository, rootPath } = makeUseCase(
 			success({
 				id: '1',
 				displayName: 'Lexi',
@@ -27,7 +46,7 @@ describe('Engine.addChannel', () => {
 			})
 		)
 
-		const result = await engine.addChannel('lexi')
+		const result = await useCase.execute({ channelName: 'lexi' })
 
 		expect(result.isSuccess()).toBe(true)
 		expect(result.value).toEqual({ username: 'lexi', recording: false })
@@ -40,7 +59,7 @@ describe('Engine.addChannel', () => {
 	})
 
 	test('canal já registrado → falha sem duplicar', async () => {
-		const { engine, channelRepository } = makeEngine(
+		const { useCase, channelRepository } = makeUseCase(
 			success({
 				id: '1',
 				displayName: 'Lexi',
@@ -49,8 +68,8 @@ describe('Engine.addChannel', () => {
 			})
 		)
 
-		await engine.addChannel('lexi') // primeiro cadastro
-		const result = await engine.addChannel('lexi') // duplicado
+		await useCase.execute({ channelName: 'lexi' }) // primeiro cadastro
+		const result = await useCase.execute({ channelName: 'lexi' }) // duplicado
 
 		expect(result.isFailure()).toBe(true)
 		expect(result.value).toBeInstanceOf(ChannelAlreadyRegisteredError)

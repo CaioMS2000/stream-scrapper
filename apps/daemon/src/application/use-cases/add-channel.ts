@@ -2,10 +2,10 @@ import {
 	ChannelAlreadyRegisteredError,
 	type ChannelNotFoundError,
 } from '@/@errors'
-import type { MediaStorage } from '@/media-storage'
-import type { ChannelRepository } from '@/repositories'
+import type { ChannelRepository } from '@/application/repositories'
+import type { MediaStorage } from '@/infrastructure/media-storage'
+import type { TwitchClient } from '@/infrastructure/twitch/client'
 import { failure, type Result, success } from '@/result'
-import type { TwitchClient } from '@/twitch/client'
 
 type UseCaseProps = {
 	twitch: TwitchClient

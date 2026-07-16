@@ -1,5 +1,5 @@
+import type { ChannelModel } from '@/application/models'
 import type { DrizzleClient } from '@/lib/drizzle'
-import type { ChannelModel } from '@/models'
 
 export type ChannelRepositoryProps = {
 	drizzle: DrizzleClient

@@ -1,4 +1,4 @@
-import type { StreamModel } from '@/models'
+import type { StreamModel } from '@/application/models'
 
 export type CreateStreamParams = {
 	streamId: string

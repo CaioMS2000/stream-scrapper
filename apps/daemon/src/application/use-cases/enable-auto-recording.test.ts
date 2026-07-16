@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { ChannelNotFoundError } from '../@errors'
-import { makeTestDb } from '../test/db'
+import { ChannelNotFoundError } from '../../@errors'
+import { makeTestDb } from '../../test/db'
 import { EnableAutoRecordingUseCase } from './enable-auto-recording'
 
 function makeUseCase() {

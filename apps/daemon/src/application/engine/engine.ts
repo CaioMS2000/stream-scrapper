@@ -1,6 +1,9 @@
-import type { MediaStorage } from '../media-storage'
-import type { ChannelLiveEvent, ChannelOfflineEvent } from '../monitor/@events'
-import type { TwitchRecorder } from '../recorder'
+import type { MediaStorage } from '../../infrastructure/media-storage'
+import type {
+	ChannelLiveEvent,
+	ChannelOfflineEvent,
+} from '../../infrastructure/monitor/@events'
+import type { TwitchRecorder } from '../../infrastructure/recorder'
 import type { StreamRepository } from '../repositories'
 
 export type EngineProps = {

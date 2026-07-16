@@ -1,5 +1,5 @@
 import { ChannelNotFoundError } from '@/@errors'
-import type { ChannelRepository } from '@/repositories'
+import type { ChannelRepository } from '@/application/repositories'
 import { failure, type Result, success } from '@/result'
 
 type UseCaseProps = {
