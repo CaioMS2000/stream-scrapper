@@ -1,5 +1,5 @@
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { DownloadStatus } from '@/models/types'
+import { DownloadStatus } from '@/application/models/types'
 
 export const downloadTable = sqliteTable('download', {
 	id: text()

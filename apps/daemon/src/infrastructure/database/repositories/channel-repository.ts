@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm'
-import type { DrizzleClient } from '@/lib/drizzle'
-import type { ChannelModel } from '@/models'
+import type { ChannelModel } from '@/application/models'
 import type {
 	AddChannelOptionalParams,
 	ChannelRepository,
 	ChannelUpdateParams,
-} from '@/repositories'
+} from '@/application/repositories'
+import type { DrizzleClient } from '@/lib/drizzle'
 import { channelsTable } from '../schemas'
 
 export type ChannelRepositoryProps = {

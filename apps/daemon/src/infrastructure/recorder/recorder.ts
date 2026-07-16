@@ -1,5 +1,5 @@
-import type { MediaStorage } from '@/media-storage'
-import type { TwitchClient } from '@/twitch/client'
+import type { MediaStorage } from '@/infrastructure/media-storage'
+import type { TwitchClient } from '@/infrastructure/twitch/client'
 import type { TwitchRecorder } from './types'
 
 export type StreamRecorderProps = {

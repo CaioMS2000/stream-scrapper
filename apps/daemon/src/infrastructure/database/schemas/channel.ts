@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { StreamQuality } from '@/models/types'
+import { StreamQuality } from '@/application/models/types'
 
 export const channelsTable = sqliteTable('channels', {
 	id: text()

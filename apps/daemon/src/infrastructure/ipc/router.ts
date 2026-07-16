@@ -1,5 +1,5 @@
 import type { IpcRequest, IpcResponse } from '@repo/ipc'
-import type { Engine } from '../engine'
+import type { Engine } from '../../application/engine'
 
 // Traduz um comando do protocolo numa chamada à Engine. É o único lugar que
 // conhece protocolo E Engine ao mesmo tempo — o server só cuida do transporte,

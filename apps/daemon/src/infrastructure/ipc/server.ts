@@ -6,7 +6,7 @@ import {
 	LineBuffer,
 } from '@repo/ipc'
 import type { Socket, UnixSocketListener } from 'bun'
-import type { Engine } from '../engine'
+import type { Engine } from '../../application/engine'
 import { createRouter } from './router'
 
 export type IpcServerProps = {

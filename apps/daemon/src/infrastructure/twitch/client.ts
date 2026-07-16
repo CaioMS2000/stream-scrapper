@@ -1,6 +1,6 @@
 import type z from 'zod'
-import { ChannelNotFoundError } from '../@errors'
-import { failure, type Result, success } from '../result'
+import { ChannelNotFoundError } from '../../@errors'
+import { failure, type Result, success } from '../../result'
 import { gqlRequest } from './http/gql'
 import { GetChannelResponse, GetChannelsResponse } from './http/schemas'
 

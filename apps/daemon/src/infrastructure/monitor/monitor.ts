@@ -1,6 +1,6 @@
-import type { ChannelRepository } from '@/repositories'
-import type { EventBus } from '../@shared/events'
-import type { Optional } from '../@shared/types'
+import type { ChannelRepository } from '@/application/repositories'
+import type { EventBus } from '../../@shared/events'
+import type { Optional } from '../../@shared/types'
 import type { TwitchClient } from '../twitch/client'
 import { ChannelLiveEvent, ChannelOfflineEvent } from './@events'
 

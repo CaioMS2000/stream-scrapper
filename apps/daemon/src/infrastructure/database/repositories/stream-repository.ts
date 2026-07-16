@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm'
-import type { DrizzleClient } from '@/lib/drizzle'
-import type { StreamModel } from '@/models'
+import type { StreamModel } from '@/application/models'
 import type {
 	CreateStreamParams,
 	GetStreamParams,
 	StreamRepository,
-} from '@/repositories'
+} from '@/application/repositories'
+import type { DrizzleClient } from '@/lib/drizzle'
 import { streamTable } from '../schemas'
 
 export type StreamRepositoryProps = {
