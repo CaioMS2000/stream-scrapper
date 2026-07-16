@@ -1,4 +1,4 @@
-import { DrizzleChannelRepository } from '../database/repositories'
+import { DrizzleChannelRepository } from '../infrastructure/database/repositories'
 import { applyMigrations, createDrizzle } from '../lib/drizzle'
 import { createDatabase } from '../lib/sqlite'
 

@@ -1,24 +1,27 @@
 import { mkdirSync } from 'node:fs'
 import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
+import { Engine } from './application/engine'
+import {
+	AddChannelUseCase,
+	EnableAutoRecordingUseCase,
+} from './application/use-cases'
 import { config } from './config'
 import {
 	DrizzleChannelRepository,
 	DrizzleStreamRepository,
-} from './database/repositories'
-import { Engine } from './engine'
-import { IpcServer } from './ipc'
-import { applyMigrations, createDrizzle } from './lib/drizzle'
-import { createDatabase } from './lib/sqlite'
-import { MediaStorage } from './media-storage'
+} from './infrastructure/database/repositories'
+import { IpcServer } from './infrastructure/ipc'
+import { MediaStorage } from './infrastructure/media-storage'
 import {
 	ChannelLiveEvent,
 	ChannelMonitor,
 	ChannelOfflineEvent,
-} from './monitor'
-import { StreamRecorder } from './recorder'
-import { TwitchClientImpl } from './twitch/client'
-import { AddChannelUseCase, EnableAutoRecordingUseCase } from './use-cases'
+} from './infrastructure/monitor'
+import { StreamRecorder } from './infrastructure/recorder'
+import { TwitchClientImpl } from './infrastructure/twitch/client'
+import { applyMigrations, createDrizzle } from './lib/drizzle'
+import { createDatabase } from './lib/sqlite'
 
 console.log(`daemon started (pid ${process.pid})`)
 

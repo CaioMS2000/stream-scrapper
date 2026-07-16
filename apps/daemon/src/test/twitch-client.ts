@@ -1,5 +1,8 @@
+import type {
+	TwitchClient,
+	TwitchClientImpl,
+} from '../infrastructure/twitch/client'
 import { success } from '../result'
-import type { TwitchClient, TwitchClientImpl } from '../twitch/client'
 
 export type GetChannelReturn = Awaited<
 	ReturnType<TwitchClientImpl['getChannel']>
