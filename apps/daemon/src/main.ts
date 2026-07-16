@@ -18,6 +18,7 @@ import {
 } from './monitor'
 import { StreamRecorder } from './recorder'
 import { TwitchClientImpl } from './twitch/client'
+import { AddChannelUseCase, EnableAutoRecordingUseCase } from './use-cases'
 
 console.log(`daemon started (pid ${process.pid})`)
 
@@ -49,13 +50,25 @@ async function main() {
 		streamlinkBinPath: config.streamlinkBinPath,
 	})
 
-	// Orquestrador — recebe todas as peças que ele coordena
+	// Orquestrador — só carrega os event handlers (onStreamStarted/Ended) por
+	// enquanto. Comandos migraram pros use cases abaixo; quando os event
+	// handlers também migrarem, a Engine some.
 	const engine = new Engine({
-		twitch,
-		channelRepository,
 		streamRepository,
 		storage,
 		recorder,
+	})
+
+	// Use cases (comandos) — instanciados no composition root; o IPC vai passar
+	// a rotear pra eles na próxima iteração (hoje só ping existe, por isso
+	// ficam sem consumer imediato).
+	const addChannel = new AddChannelUseCase({
+		twitch,
+		channelRepository,
+		storage,
+	})
+	const enableAutoRecording = new EnableAutoRecordingUseCase({
+		channelRepository,
 	})
 
 	// Detector — publica eventos no bus, não conhece consumidores

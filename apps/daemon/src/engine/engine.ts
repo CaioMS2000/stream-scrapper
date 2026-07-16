@@ -1,14 +1,9 @@
-import { ChannelAlreadyRegisteredError, ChannelNotFoundError } from '../@errors'
 import type { MediaStorage } from '../media-storage'
 import type { ChannelLiveEvent, ChannelOfflineEvent } from '../monitor/@events'
 import type { TwitchRecorder } from '../recorder'
-import type { ChannelRepository, StreamRepository } from '../repositories'
-import { failure, type Result, success } from '../result'
-import type { TwitchClient } from '../twitch/client'
+import type { StreamRepository } from '../repositories'
 
 export type EngineProps = {
-	twitch: TwitchClient
-	channelRepository: ChannelRepository
 	streamRepository: StreamRepository
 	storage: MediaStorage
 	recorder: TwitchRecorder
@@ -16,57 +11,6 @@ export type EngineProps = {
 
 export class Engine {
 	constructor(private readonly props: EngineProps) {}
-
-	get twitch() {
-		return this.props.twitch
-	}
-
-	async addChannel(
-		channel: string
-	): Promise<
-		Result<
-			ChannelNotFoundError | ChannelAlreadyRegisteredError,
-			{ username: string; recording: boolean }
-		>
-	> {
-		const result = await this.props.twitch.getChannel(channel)
-
-		if (result.isFailure()) {
-			return failure(result.value)
-		}
-
-		const existingChannel =
-			await this.props.channelRepository.findChannel(channel)
-
-		if (existingChannel !== null) {
-			return failure(new ChannelAlreadyRegisteredError(channel))
-		}
-
-		this.props.storage.ensureChannelPath(channel)
-
-		const newRecord = await this.props.channelRepository.addChannel(channel, {
-			name: result.value.displayName,
-			profileImageURL: result.value.profileImageURL,
-		})
-
-		return success({
-			username: newRecord.username,
-			recording: newRecord.autoRecord,
-		})
-	}
-
-	async enableAutoRecording(
-		channel: string
-	): Promise<Result<ChannelNotFoundError, void>> {
-		const existingChannel =
-			await this.props.channelRepository.findChannel(channel)
-
-		if (existingChannel === null) {
-			return failure(new ChannelNotFoundError(channel))
-		}
-
-		return success(undefined)
-	}
 
 	// Handler do evento 'live' vindo do Monitor. Orquestra os dois invariantes
 	// (persistir stream + disparar recorder) em chamadas síncronas — não
