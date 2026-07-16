@@ -35,7 +35,7 @@ const SIGKILL_FALLBACK_MS = 10_000
 export class StreamRecorder implements TwitchRecorder {
 	// Single source of truth pra "quem está gravando agora". Chave é o username
 	// em lowercase (mesma normalização usada no ChannelMonitor).
-	private readonly active = new Map<string, ActiveRecording>()
+	private readonly activeRecordings = new Map<string, ActiveRecording>()
 
 	constructor(private readonly props: StreamRecorderProps) {}
 
@@ -48,7 +48,7 @@ export class StreamRecorder implements TwitchRecorder {
 	}) => {
 		const key = channelName.toLowerCase()
 
-		if (this.active.has(key)) {
+		if (this.activeRecordings.has(key)) {
 			throw new Error(
 				`[recorder] gravação já ativa para ${channelName} — duplicata ignorada`
 			)
@@ -79,7 +79,7 @@ export class StreamRecorder implements TwitchRecorder {
 			stderrTail: [],
 			killTimer: null,
 		}
-		this.active.set(key, entry)
+		this.activeRecordings.set(key, entry)
 
 		// Consumidores em background — sem await pra não segurar o retorno da
 		// função. handleExit é quem limpa o entry no map.
@@ -101,7 +101,7 @@ export class StreamRecorder implements TwitchRecorder {
 
 	stopStream: TwitchRecorder['stopStream'] = async username => {
 		const key = username.toLowerCase()
-		const entry = this.active.get(key)
+		const entry = this.activeRecordings.get(key)
 		if (!entry) {
 			console.warn(
 				`[recorder] stopStream: nenhuma gravação ativa para ${username}`
@@ -125,16 +125,16 @@ export class StreamRecorder implements TwitchRecorder {
 
 	// Chamado no shutdown do daemon pra não deixar streamlink órfão.
 	async stopAll(): Promise<void> {
-		const usernames = [...this.active.keys()]
+		const usernames = [...this.activeRecordings.keys()]
 		await Promise.all(usernames.map(u => this.stopStream(u)))
 	}
 
 	private handleExit(key: string, exitCode: number | null): void {
-		const entry = this.active.get(key)
+		const entry = this.activeRecordings.get(key)
 		if (!entry) return
 
 		if (entry.killTimer) clearTimeout(entry.killTimer)
-		this.active.delete(key)
+		this.activeRecordings.delete(key)
 
 		// "Nós paramos" vs "acabou sozinho" vem do stopRequested, NÃO do
 		// exit code — SIGTERM em streamlink pode sair não-zero mesmo tendo
