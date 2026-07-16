@@ -46,5 +46,6 @@ git-info-for-commit.sh
 .mcp.json
 .gemini
 *.md
+*.svg
 !WIP.md
 !apps/daemon/notes/*.md
