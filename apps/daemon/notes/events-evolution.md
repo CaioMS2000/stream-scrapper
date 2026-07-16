@@ -407,6 +407,6 @@ que só precisam do timestamp comum, sem depender do shape específico.
 ## Referências no código
 
 - **Utilitário compartilhado** (Estágio 3): [apps/daemon/src/@shared/events/event-bus.ts](../src/@shared/events/event-bus.ts) — `EventBus`, `Event`
-- **Eventos do Monitor**: [apps/daemon/src/monitor/@events/channel-live.ts](../src/monitor/@events/channel-live.ts) — `ChannelLiveEvent`, `ChannelOfflineEvent` (classes implementando `Event`)
-- **Uso pelo Monitor**: [apps/daemon/src/monitor/monitor.ts](../src/monitor/monitor.ts) — `ChannelMonitorProps.bus: EventBus`, publica com `bus.publish(new ClasseEvento(...))`
+- **Eventos do Monitor**: [apps/daemon/src/infrastructure/monitor/@events/channel-live.ts](../src/infrastructure/monitor/@events/channel-live.ts) — `ChannelLiveEvent`, `ChannelOfflineEvent` (classes implementando `Event`)
+- **Uso pelo Monitor**: [apps/daemon/src/infrastructure/monitor/monitor.ts](../src/infrastructure/monitor/monitor.ts) — `ChannelMonitorProps.bus: EventBus`, publica com `bus.publish(new ClasseEvento(...))`
 - **Wiring central**: [apps/daemon/src/main.ts](../src/main.ts) — `new EventBus()` + `bus.subscribe(ClasseEvento, handler)` por classe

@@ -175,12 +175,10 @@ que fazer". Redundância intencional pra robustez.
 
 ## Referências no código (estado atual)
 
-- Monitor emitindo eventos: [apps/daemon/src/monitor/monitor.ts](../src/monitor/monitor.ts)
-- Tipos dos eventos: [apps/daemon/src/monitor/type.ts](../src/monitor/type.ts) —
-  hoje `MonitorEvent` só tem `username` + `startedAt`, ainda sem os metadados
-  extras (streamId, title, category)
-- Engine (base): [apps/daemon/src/engine/engine.ts](../src/engine/engine.ts) —
-  ainda não tem `onStreamStarted` / `onStreamEnded`
-- Store (a ser dividido): [apps/daemon/src/store/store.ts](../src/store/store.ts) —
-  já tem `createStream` mas ainda misturado com canais/filesystem; refatoração
-  pra `ChannelRepository` / `StreamRepository` / `MediaStorage` está pendente
+- Monitor emitindo eventos: [apps/daemon/src/infrastructure/monitor/monitor.ts](../src/infrastructure/monitor/monitor.ts)
+- Classes de evento: [apps/daemon/src/infrastructure/monitor/@events/channel-live.ts](../src/infrastructure/monitor/@events/channel-live.ts) —
+  `ChannelLiveEvent` já carrega `username` + `title` + `startedAt`; `streamId`
+  e `category` ainda são placeholders (Monitor não passa `stream.id` no evento)
+- Engine (base): [apps/daemon/src/application/engine/engine.ts](../src/application/engine/engine.ts) —
+  `onStreamStarted` e `onStreamEnded` implementados; disparam
+  `streamRepository.createStream` + `recorder.recordTwitchStream` / `recorder.stopStream`
