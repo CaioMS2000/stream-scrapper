@@ -16,6 +16,17 @@ export type ChannelUpdateParams = Partial<Omit<ChannelModel, 'id'>> & {
 	id: ChannelModel['id']
 }
 
+/**
+ * Repositório de canais monitorados.
+ *
+ * **Convenção de username**: sempre armazenado em lowercase. Métodos que
+ * recebem `channel: string` como identificador (`findChannel`, `addChannel`)
+ * normalizam a entrada antes de comparar/gravar — chame com o case que quiser.
+ * `displayName` preserva o case original pra apresentação humana.
+ *
+ * Consequência: consumidores downstream (Monitor, Recorder) podem confiar
+ * que `channel.username` já vem lowercase da DB, sem precisar re-normalizar.
+ */
 export interface ChannelRepository {
 	findChannel(channel: string): Promise<ChannelModel | null>
 	addChannel(

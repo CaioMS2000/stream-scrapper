@@ -23,7 +23,7 @@ export class DrizzleChannelRepository implements ChannelRepository {
 		const record = this.drizzle
 			.select()
 			.from(channelsTable)
-			.where(eq(channelsTable.username, channel))
+			.where(eq(channelsTable.username, channel.toLowerCase()))
 			.get()
 		return record ?? null
 	}
@@ -32,12 +32,16 @@ export class DrizzleChannelRepository implements ChannelRepository {
 		channel: string,
 		params?: AddChannelOptionalParams
 	): Promise<ChannelModel> {
+		// `username` fica sempre lowercase — política do repositório (ver JSDoc
+		// em ChannelRepository). `displayName` preserva o case original vindo
+		// da Twitch (ou o input cru como fallback), que é o nome pra humano.
+		const username = channel.toLowerCase()
 		const qualityPref = params?.qualityPref ?? 'source'
 		const displayName = params?.name ?? channel
 		const autoRecord = params?.autoRecord ?? undefined
 		const record = this.drizzle
 			.insert(channelsTable)
-			.values({ username: channel, qualityPref, displayName, autoRecord })
+			.values({ username, qualityPref, displayName, autoRecord })
 			.returning()
 			.get()
 		return record
