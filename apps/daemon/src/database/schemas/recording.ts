@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { StreamQuality } from '@/models/types'
+import { RecordingStatus, StreamQuality } from '@/models/types'
 
 export const recordingTable = sqliteTable('recording', {
 	id: text()
@@ -8,7 +8,9 @@ export const recordingTable = sqliteTable('recording', {
 	streamId: text('stream_id').notNull(),
 	startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
 	endedAt: integer('ended_at', { mode: 'timestamp' }).notNull(),
-	status: text('status').notNull(),
+	status: text('status', {
+		enum: RecordingStatus,
+	}).notNull(),
 	quality: text('quality', {
 		enum: StreamQuality,
 	}).notNull(),

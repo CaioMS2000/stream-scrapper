@@ -14,3 +14,6 @@ export const DownloadStatus = [
 	'failed',
 ] as const
 export type DownloadStatus = (typeof DownloadStatus)[number]
+
+export const RecordingStatus = ['recording', 'finished', 'failed'] as const
+export type RecordingStatus = (typeof RecordingStatus)[number]
