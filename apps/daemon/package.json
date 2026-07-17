@@ -5,6 +5,8 @@
 	"private": true,
 	"scripts": {
 		"start": "bun src/main.ts",
+		"test": "bun test",
+		"test:integration": "find ./src -name '*.integration-spec.ts' -type f -exec bun test {} +",
 		"format:force": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true",
 		"check-types": "tsc --noEmit",
 		"db:generate": "bunx drizzle-kit generate",

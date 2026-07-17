@@ -7,11 +7,16 @@
     "lint": "turbo run lint",
     "format": "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "bun scripts/smoke-e2e.ts",
     "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
     "@caioms/biomejs-config": "^1.1.13",
+    "@types/bun": "^1.3.14",
+    "bun-types": "^1.3.14",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "turbo": "^2.10.4",
