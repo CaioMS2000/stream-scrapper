@@ -6,6 +6,7 @@ import type { Event } from '@/@shared/events'
 // pra rastrear latência entre a live começar e a gente notar.
 type ChannelLiveEventData = {
 	username: string
+	streamId: string
 	title: string
 	startedAt: Date
 }
@@ -17,6 +18,10 @@ export class ChannelLiveEvent implements Event {
 
 	get username() {
 		return this.data.username
+	}
+
+	get streamId() {
+		return this.data.streamId
 	}
 
 	get title() {

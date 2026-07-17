@@ -21,10 +21,7 @@ export class Engine {
 	// notes/speculation-early-recorder-invariants-vs-reactions.md).
 	async onStreamStarted(event: ChannelLiveEvent): Promise<void> {
 		try {
-			// Nota: streamId ainda é placeholder — Monitor não carrega o
-			// `stream.id` do Twitch no evento (só username/title/startedAt).
-			// Category/streamId reais entram quando MonitorEvent for enriquecido.
-			const streamId = `stub-${event.username}-${event.startedAt.getTime()}`
+			const streamId = event.streamId
 
 			await this.props.streamRepository.createStream({
 				streamId,

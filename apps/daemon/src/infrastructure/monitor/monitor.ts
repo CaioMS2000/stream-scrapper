@@ -64,13 +64,17 @@ export class ChannelMonitor {
 		const result = await this.props.twitch.getChannels(usernames)
 		const { users, notFoundUsers } = result.value
 
-		// Map login → snapshot do stream do próprio Twitch (`createdAt` + `title`).
-		// Quem não está no map é offline (ou não existe mais — notFoundUsers cai
-		// no mesmo balde).
-		const liveNow = new Map<string, { startedAt: Date; title: string }>()
+		// Map login → snapshot do stream do próprio Twitch (`id` + `createdAt` +
+		// `title`). Quem não está no map é offline (ou não existe mais —
+		// notFoundUsers cai no mesmo balde).
+		const liveNow = new Map<
+			string,
+			{ id: string; startedAt: Date; title: string }
+		>()
 		for (const user of users) {
 			if (user.stream !== null) {
 				liveNow.set(user.login.toLowerCase(), {
+					id: user.stream.id,
 					startedAt: user.stream.createdAt,
 					title: user.stream.title,
 				})
@@ -92,6 +96,7 @@ export class ChannelMonitor {
 				await this.props.bus.publish(
 					new ChannelLiveEvent({
 						username: channel.username,
+						streamId: liveInfo.id,
 						startedAt: liveInfo.startedAt,
 						title: liveInfo.title,
 					})
