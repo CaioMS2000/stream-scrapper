@@ -6,11 +6,10 @@ import {
 	LineBuffer,
 } from '@repo/ipc'
 import type { Socket, UnixSocketListener } from 'bun'
-import type { Engine } from '../../application/engine'
-import { createRouter } from './router'
+import { IpcRouter, type IpcRouterProps } from './router'
 
 export type IpcServerProps = {
-	engine: Engine
+	deps: IpcRouterProps
 	socketPath: string
 }
 
@@ -19,11 +18,11 @@ export type IpcServerProps = {
 type ConnState = { buffer: LineBuffer }
 
 export class IpcServer {
-	private readonly route: (request: IpcRequest) => Promise<IpcResponse>
+	private readonly router: IpcRouter
 	private listener?: UnixSocketListener<ConnState>
 
 	constructor(private readonly props: IpcServerProps) {
-		this.route = createRouter(props.engine)
+		this.router = new IpcRouter(props.deps)
 	}
 
 	async listen() {
@@ -58,7 +57,7 @@ export class IpcServer {
 		let response: IpcResponse
 		try {
 			const request = IpcRequest.parse(JSON.parse(line))
-			response = await this.route(request)
+			response = await this.router.route(request)
 		} catch (err) {
 			response = {
 				ok: false,

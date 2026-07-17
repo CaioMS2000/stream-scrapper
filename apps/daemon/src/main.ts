@@ -92,10 +92,13 @@ async function main() {
 
 	monitor.startMonitoring()
 
-	// Camada de IPC: escuta o socket e traduz comandos do CLI em chamadas à
-	// Engine. A Engine continua agnóstica de quem chamou.
+	// Camada de IPC: escuta o socket e traduz comandos do CLI em chamadas
+	// aos use cases. Cada use case ainda é agnóstico de quem chamou.
 	const socketPath = resolveSocketPath()
-	const ipc = new IpcServer({ engine, socketPath })
+	const ipc = new IpcServer({
+		deps: { addChannel, enableAutoRecording },
+		socketPath,
+	})
 	await ipc.listen()
 	console.log(`ipc listening at ${socketPath}`)
 

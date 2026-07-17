@@ -12,7 +12,25 @@ export const PingRequest = z.object({
 	cmd: z.literal('ping'),
 })
 
-export const IpcRequest = z.discriminatedUnion('cmd', [PingRequest])
+export const AddChannelRequest = z.object({
+	cmd: z.literal('add-channel'),
+	username: z.string().min(1),
+})
+export type AddChannelRequest = z.infer<typeof AddChannelRequest>
+
+export const EnableAutoRecordingRequest = z.object({
+	cmd: z.literal('enable-auto-recording'),
+	username: z.string().min(1),
+})
+export type EnableAutoRecordingRequest = z.infer<
+	typeof EnableAutoRecordingRequest
+>
+
+export const IpcRequest = z.discriminatedUnion('cmd', [
+	PingRequest,
+	AddChannelRequest,
+	EnableAutoRecordingRequest,
+])
 export type IpcRequest = z.infer<typeof IpcRequest>
 
 // --- Responses ------------------------------------------------------------
@@ -33,5 +51,28 @@ export const PingResponse = z.object({
 })
 export type PingResponse = z.infer<typeof PingResponse>
 
-export const IpcResponse = z.union([PingResponse, IpcErrorResponse])
+export const AddChannelResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('add-channel'),
+	channel: z.object({
+		username: z.string(),
+		recording: z.boolean(),
+	}),
+})
+export type AddChannelResponse = z.infer<typeof AddChannelResponse>
+
+export const EnableAutoRecordingResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('enable-auto-recording'),
+})
+export type EnableAutoRecordingResponse = z.infer<
+	typeof EnableAutoRecordingResponse
+>
+
+export const IpcResponse = z.union([
+	PingResponse,
+	AddChannelResponse,
+	EnableAutoRecordingResponse,
+	IpcErrorResponse,
+])
 export type IpcResponse = z.infer<typeof IpcResponse>
