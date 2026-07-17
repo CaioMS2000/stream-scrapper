@@ -10,6 +10,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "bun scripts/smoke-e2e.ts",
+    "scrapper": "bun apps/cli/src/index.ts",
     "prepare": "husky"
   },
   "devDependencies": {
