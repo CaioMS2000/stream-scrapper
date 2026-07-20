@@ -12,7 +12,7 @@ import {
 	DrizzleStreamRepository,
 } from './infrastructure/database/repositories'
 import { IpcServer } from './infrastructure/ipc'
-import { MediaStorage } from './infrastructure/media-storage'
+import { MediaStorage, StreamMetaStorage } from './infrastructure/media-storage'
 import {
 	ChannelLiveEvent,
 	ChannelMonitor,
@@ -53,6 +53,9 @@ async function main() {
 		streamlinkBinPath: config.streamlinkBinPath,
 	})
 
+	// Storage de arquivos locais 'meta.json'
+	const streamMetaStorage = new StreamMetaStorage()
+
 	// Orquestrador — só carrega os event handlers (onStreamStarted/Ended) por
 	// enquanto. Comandos migraram pros use cases abaixo; quando os event
 	// handlers também migrarem, a Engine some.
@@ -60,6 +63,7 @@ async function main() {
 		streamRepository,
 		storage,
 		recorder,
+		streamMetaStorage,
 	})
 
 	// Use cases (comandos) — instanciados no composition root; o IPC vai passar

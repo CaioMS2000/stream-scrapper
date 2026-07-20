@@ -1,3 +1,4 @@
+import type { StreamMetaStorage } from '@/infrastructure/media-storage/stream-meta-storage'
 import type { MediaStorage } from '../../infrastructure/media-storage'
 import type {
 	ChannelLiveEvent,
@@ -10,6 +11,7 @@ export type EngineProps = {
 	streamRepository: StreamRepository
 	storage: MediaStorage
 	recorder: TwitchRecorder
+	streamMetaStorage: StreamMetaStorage
 }
 
 export class Engine {
@@ -22,7 +24,6 @@ export class Engine {
 	async onStreamStarted(event: ChannelLiveEvent): Promise<void> {
 		try {
 			const streamId = event.streamId
-
 			await this.props.streamRepository.createStream({
 				streamId,
 				channelName: event.username,
@@ -34,6 +35,21 @@ export class Engine {
 				streamId,
 				title: event.title,
 				startedAt: event.startedAt,
+			})
+			const metaFile = this.props.streamMetaStorage.toMetaFile({
+				channelName: event.username,
+				title: event.title,
+				streamId,
+				startedAt: event.startedAt,
+				endedAt: undefined,
+				status: 'recording',
+				quality: 'source',
+				bytes: undefined,
+			})
+
+			this.props.streamMetaStorage.writeStreamMeta({
+				metaFile,
+				storagePath: fullPath,
 			})
 			await this.props.recorder.recordTwitchStream({
 				channelName: event.username,
