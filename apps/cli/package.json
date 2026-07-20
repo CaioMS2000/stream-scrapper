@@ -7,6 +7,7 @@
     "scrapper": "src/index.ts"
   },
   "scripts": {
+    "scrapper": "bun src/index.ts",
     "check-types": "bunx tsc --noEmit"
   },
   "devDependencies": {
