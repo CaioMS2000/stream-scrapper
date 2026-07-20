@@ -1,12 +1,12 @@
-import type { RecordingStatus, StreamQuality } from './types'
+import type { RecordingStatus, VideoQuality } from './types'
 
 export type RecordingModel = {
 	id: string
 	streamId: string
 	startedAt: Date
-	endedAt: Date
+	endedAt?: Date
 	status: RecordingStatus
-	quality: StreamQuality
+	quality: VideoQuality
 	storagePath: string
-	bytes: number
+	bytes?: number // o tamanho em bytes
 }

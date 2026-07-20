@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { StreamQuality } from '@/application/models/types'
+import { VideoQuality } from '@/application/models/types'
 
 export const channelsTable = sqliteTable('channels', {
 	id: text()
@@ -20,7 +20,7 @@ export const channelsTable = sqliteTable('channels', {
 	isLive: integer('is_live', { mode: 'boolean' }).notNull().default(false),
 
 	qualityPref: text('quality_pref', {
-		enum: StreamQuality,
+		enum: VideoQuality,
 	}).notNull(),
 })
 

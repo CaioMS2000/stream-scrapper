@@ -1,4 +1,4 @@
-import type { StreamQuality } from './types'
+import type { VideoQuality } from './types'
 
 export type ChannelModel = {
 	id: string
@@ -8,5 +8,5 @@ export type ChannelModel = {
 	monitoredSince: Date
 	autoRecord: boolean
 	isLive: boolean
-	qualityPref: StreamQuality
+	qualityPref: VideoQuality
 }
