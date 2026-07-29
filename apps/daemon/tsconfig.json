@@ -30,8 +30,8 @@
 		// Paths
 		"baseUrl": ".",
 		"paths": {
-		"@/*": ["./src/*"],
-		"[ROOT]/*": ["./*"]
+			"@/*": ["./src/*"],
+			"[ROOT]/*": ["./*"]
 		}
 	},
 	"exclude": ["node_modules", "data", "**/live_*.ts"]
