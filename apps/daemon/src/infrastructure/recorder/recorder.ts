@@ -1,11 +1,17 @@
+import { statSync } from 'node:fs'
+import { dirname } from 'node:path'
+import type { EventBus } from '@/@shared/events'
 import type { MediaStorage } from '@/infrastructure/media-storage'
 import type { TwitchClient } from '@/infrastructure/twitch/client'
+import { RecordingFailedEvent } from './@events/recording-failed'
+import { RecordingFinishedEvent } from './@events/recording-finished'
 import type { TwitchRecorder } from './types'
 
 export type StreamRecorderProps = {
 	twitch: TwitchClient
 	storage: MediaStorage
 	streamlinkBinPath: string
+	bus: EventBus
 }
 
 type ExitReason =
@@ -27,6 +33,12 @@ type ActiveRecording = {
 	// Fallback SIGKILL agendado por stopStream. handleExit cancela quando o
 	// processo finalmente sai.
 	killTimer: Timer | null
+	// meta info of streaming
+	streamId: string
+	title: string
+	channelName: string
+	outputPath: string
+	startedAt: Date
 }
 
 const STDERR_TAIL_MAX = 50
@@ -78,6 +90,11 @@ export class StreamRecorder implements TwitchRecorder {
 			stopRequested: false,
 			stderrTail: [],
 			killTimer: null,
+			streamId,
+			title,
+			channelName,
+			startedAt,
+			outputPath,
 		}
 		this.activeRecordings.set(key, entry)
 
@@ -151,20 +168,36 @@ export class StreamRecorder implements TwitchRecorder {
 						stderrTail: entry.stderrTail,
 					}
 
+		// Snapshot dos campos comuns aos dois eventos. bytes pode ser undefined
+		// se o .ts sumiu (crash antes do 1º write); consumidores tratam.
+		const endedAt = new Date()
+		const bytes = tryStatSize(entry.outputPath)
+		const storagePath = dirname(entry.outputPath)
+		const commonEventData = {
+			username: entry.channelName,
+			streamId: entry.streamId,
+			title: entry.title,
+			startedAt: entry.startedAt,
+			endedAt,
+			storagePath,
+			bytes,
+		}
+
 		switch (reason.kind) {
 			case 'stopped-by-us':
-				console.log(
-					`[recorder] ${key}: parada solicitada (streamlink encerrado)`
-				)
-				break
 			case 'stream-ended':
-				console.log(
-					`[recorder] ${key}: live terminou naturalmente (streamlink exit 0)`
-				)
+				void this.props.bus.publish(new RecordingFinishedEvent(commonEventData))
 				break
 			case 'error':
 				console.error(
 					`[recorder] ${key}: streamlink falhou (exit=${reason.exitCode}, signal=${reason.signalCode}). Últimas linhas de stderr:\n${reason.stderrTail.join('\n')}`
+				)
+				void this.props.bus.publish(
+					new RecordingFailedEvent({
+						...commonEventData,
+						exitCode: reason.exitCode,
+						stderrTail: reason.stderrTail,
+					})
 				)
 				break
 		}
@@ -192,5 +225,16 @@ export class StreamRecorder implements TwitchRecorder {
 		} catch (error) {
 			console.error('[recorder] consumeStderr failed:', error)
 		}
+	}
+}
+
+// Fs stat protegido: crashes muito precoces podem deixar o .ts sem chegar
+// a existir. Retornar undefined em qualquer erro deixa o consumidor
+// (meta.json) sinalizar "gravação patológica" sem derrubar o publish.
+function tryStatSize(filePath: string): number | undefined {
+	try {
+		return statSync(filePath).size
+	} catch {
+		return undefined
 	}
 }

@@ -7,8 +7,10 @@ export const recordingMetaFileSchemav1 = z.object({
 	streamId: z.string(),
 	channelName: z.string(),
 	title: z.string(),
-	startedAt: z.date(),
-	endedAt: z.date().optional(),
+	// coerce.date() aceita string ISO (JSON.parse) e Date nativo — necessário
+	// pra hidratar quando lemos o meta.json de volta pra update.
+	startedAt: z.coerce.date(),
+	endedAt: z.coerce.date().optional(),
 	quality: z.enum(VideoQuality),
 	status: z.enum(RecordingStatus),
 	bytes: z.int().optional(),

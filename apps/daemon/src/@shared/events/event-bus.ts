@@ -15,7 +15,7 @@ type Ctor<E = unknown> = new (...args: any[]) => E
 // **Isolamento de erro por handler**: um handler bugado NÃO derruba os
 // outros nem o `publish()`. Crítico pra daemon 24/7 — se um handler crashar
 // (webhook morto, métrica quebrada), os demais (incluindo invariantes tipo
-// Engine.onStreamStarted) continuam rodando.
+// StartRecordingUseCase) continuam rodando.
 //
 // Handlers podem ser sync OU async (`void | Promise<void>`); `publish` faz
 // await em ordem de subscribe.

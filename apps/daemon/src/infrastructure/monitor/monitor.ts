@@ -10,8 +10,8 @@ export type ChannelMonitorProps = {
 	channelRepository: ChannelRepository
 	/**
 	 * Bus central compartilhado por todo o daemon. Monitor publica eventos
-	 * aqui; consumidores (Engine, futuros webhooks/métricas/audit) assinam
-	 * as classes que interessam.
+	 * aqui; consumidores (use cases de start/stop recording, futuros
+	 * webhooks/métricas/audit) assinam as classes que interessam.
 	 *
 	 * Diferente do padrão Emitter anterior — aqui **a mesma instância é
 	 * intencionalmente compartilhada** entre todos os produtores/consumidores

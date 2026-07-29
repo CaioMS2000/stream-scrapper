@@ -51,8 +51,8 @@ export class IpcServer {
 	}
 
 	// Cada mensagem é isolada: qualquer erro (JSON inválido, comando desconhecido,
-	// falha na Engine) vira uma resposta de erro — nunca derruba o daemon. É a
-	// fronteira de erro que um processo long-running exige.
+	// falha em use case) vira uma resposta de erro — nunca derruba o daemon.
+	// É a fronteira de erro que um processo long-running exige.
 	private async handleLine(socket: Socket<ConnState>, line: string) {
 		let response: IpcResponse
 		try {

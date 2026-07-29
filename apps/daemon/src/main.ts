@@ -1,10 +1,12 @@
 import { mkdirSync } from 'node:fs'
 import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
-import { Engine } from './application/engine'
 import {
 	AddChannelUseCase,
 	EnableAutoRecordingUseCase,
+	FinalizeRecordingUseCase,
+	StartRecordingUseCase,
+	StopRecordingUseCase,
 } from './application/use-cases'
 import { config } from './config'
 import {
@@ -18,7 +20,11 @@ import {
 	ChannelMonitor,
 	ChannelOfflineEvent,
 } from './infrastructure/monitor'
-import { StreamRecorder } from './infrastructure/recorder'
+import {
+	RecordingFailedEvent,
+	RecordingFinishedEvent,
+	StreamRecorder,
+} from './infrastructure/recorder'
 import { TwitchClientImpl } from './infrastructure/twitch/client'
 import { applyMigrations, createDrizzle } from './lib/drizzle'
 import { createDatabase } from './lib/sqlite'
@@ -47,28 +53,20 @@ async function main() {
 	const twitch = new TwitchClientImpl()
 
 	// Executor de gravação — spawna streamlink por canal via child process.
+	// Recebe o bus pra publicar RecordingFinished/FailedEvent no handleExit.
 	const recorder = new StreamRecorder({
 		twitch,
 		storage,
 		streamlinkBinPath: config.streamlinkBinPath,
+		bus,
 	})
 
 	// Storage de arquivos locais 'meta.json'
 	const streamMetaStorage = new StreamMetaStorage()
 
-	// Orquestrador — só carrega os event handlers (onStreamStarted/Ended) por
-	// enquanto. Comandos migraram pros use cases abaixo; quando os event
-	// handlers também migrarem, a Engine some.
-	const engine = new Engine({
-		streamRepository,
-		storage,
-		recorder,
-		streamMetaStorage,
-	})
-
-	// Use cases (comandos) — instanciados no composition root; o IPC vai passar
-	// a rotear pra eles na próxima iteração (hoje só ping existe, por isso
-	// ficam sem consumer imediato).
+	// Use cases — instanciados no composition root. Comandos são chamados
+	// pelo IPC; reactions (start/stop recording) são acionadas via subscribe
+	// no bus logo abaixo.
 	const addChannel = new AddChannelUseCase({
 		twitch,
 		channelRepository,
@@ -77,6 +75,14 @@ async function main() {
 	const enableAutoRecording = new EnableAutoRecordingUseCase({
 		channelRepository,
 	})
+	const startRecording = new StartRecordingUseCase({
+		streamRepository,
+		storage,
+		recorder,
+		streamMetaStorage,
+	})
+	const stopRecording = new StopRecordingUseCase({ recorder })
+	const finalizeRecording = new FinalizeRecordingUseCase({ streamMetaStorage })
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -86,13 +92,45 @@ async function main() {
 	})
 
 	// ═════════════════════════════════════════════════════════════════════
-	// A PONTE Monitor → Engine (via bus)
-	// Monitor publica ChannelLiveEvent/ChannelOfflineEvent; Engine se
-	// inscreveu abaixo pra reagir. Adicionar novo consumidor (webhook,
-	// métrica, audit) = mais linhas aqui, zero mudança em Monitor.
+	// A PONTE Monitor → use cases (via bus)
+	// Monitor publica ChannelLiveEvent/ChannelOfflineEvent; os subscribers
+	// abaixo são thin adapters que traduzem evento → primitivos → use case.
+	// Adicionar novo consumidor (webhook, métrica, audit) = mais linhas
+	// aqui, zero mudança em Monitor ou nos use cases.
 	// ═════════════════════════════════════════════════════════════════════
-	bus.subscribe(ChannelLiveEvent, event => engine.onStreamStarted(event))
-	bus.subscribe(ChannelOfflineEvent, event => engine.onStreamEnded(event))
+	bus.subscribe(ChannelLiveEvent, async event => {
+		const result = await startRecording.execute({
+			channelName: event.username,
+			streamId: event.streamId,
+			title: event.title,
+			startedAt: event.startedAt,
+		})
+		if (result.isFailure()) console.error('[start-recording]', result.value)
+	})
+	bus.subscribe(ChannelOfflineEvent, async event => {
+		const result = await stopRecording.execute({ channelName: event.username })
+		if (result.isFailure()) console.error('[stop-recording]', result.value)
+	})
+	bus.subscribe(RecordingFinishedEvent, async event => {
+		const result = await finalizeRecording.execute({
+			channelName: event.username,
+			storagePath: event.storagePath,
+			endedAt: event.endedAt,
+			bytes: event.bytes,
+			status: 'finished',
+		})
+		if (result.isFailure()) console.error('[finalize-recording]', result.value)
+	})
+	bus.subscribe(RecordingFailedEvent, async event => {
+		const result = await finalizeRecording.execute({
+			channelName: event.username,
+			storagePath: event.storagePath,
+			endedAt: event.endedAt,
+			bytes: event.bytes,
+			status: 'failed',
+		})
+		if (result.isFailure()) console.error('[finalize-recording]', result.value)
+	})
 
 	monitor.startMonitoring()
 
