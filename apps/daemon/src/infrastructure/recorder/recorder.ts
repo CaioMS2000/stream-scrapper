@@ -39,6 +39,10 @@ type ActiveRecording = {
 	channelName: string
 	outputPath: string
 	startedAt: Date
+	// Resolve depois que handleExit (incluindo bus.publish → finalize)
+	// completou. stopAll awaita isso pra não deixar meta.json preso em
+	// "recording" quando o daemon fecha com gravações ativas.
+	exitHandled: Promise<void>
 }
 
 const STDERR_TAIL_MAX = 50
@@ -85,6 +89,13 @@ export class StreamRecorder implements TwitchRecorder {
 			stderr: 'pipe',
 		})
 
+		// Chain de finalização em background — handleExit é quem limpa o entry
+		// no map. Capturamos a promise pra stopAll conseguir awaitar no shutdown
+		// (sem isso, Bun sai antes do meta.json fechar em "finished").
+		const exitHandled = proc.exited.then(exitCode =>
+			this.handleExit(key, exitCode)
+		)
+
 		const entry: ActiveRecording = {
 			proc,
 			stopRequested: false,
@@ -95,13 +106,12 @@ export class StreamRecorder implements TwitchRecorder {
 			channelName,
 			startedAt,
 			outputPath,
+			exitHandled,
 		}
 		this.activeRecordings.set(key, entry)
 
-		// Consumidores em background — sem await pra não segurar o retorno da
-		// função. handleExit é quem limpa o entry no map.
+		// stderr consumer não bloqueia shutdown — descarta o retorno.
 		void this.consumeStderr(proc, entry)
-		void proc.exited.then(exitCode => this.handleExit(key, exitCode))
 
 		console.log(
 			`[recorder] ${channelName}: streamlink spawned (pid=${proc.pid}, output=${outputPath})`
@@ -141,12 +151,30 @@ export class StreamRecorder implements TwitchRecorder {
 	}
 
 	// Chamado no shutdown do daemon pra não deixar streamlink órfão.
+	// Diferente do `stopStream` reactive (canal offline), aqui bloqueamos até
+	// cada handleExit + bus.publish → finalize completar — do contrário Bun
+	// sairia com o meta.json de todas as gravações ativas preso em "recording".
 	async stopAll(): Promise<void> {
+		// Snapshot ANTES de sinalizar: handleExit deleta cada entry do map,
+		// então precisamos guardar as promises originais aqui.
+		const pending = [...this.activeRecordings.values()].map(e => e.exitHandled)
 		const usernames = [...this.activeRecordings.keys()]
+
+		// Envia SIGTERMs em paralelo (stopStream retorna após emitir sinal).
 		await Promise.all(usernames.map(u => this.stopStream(u)))
+
+		// allSettled: se um finalize falhar (ex: dir sumiu), não aborta o
+		// shutdown das outras gravações — todas merecem SIGTERM confirmado.
+		await Promise.allSettled(pending)
 	}
 
-	private handleExit(key: string, exitCode: number | null): void {
+	// Async pra encadear com `bus.publish` (que awaita cada subscriber
+	// sequencialmente). É essa cadeia que o `exitHandled` no ActiveRecording
+	// captura — permite `stopAll` bloquear até o `meta.json` fechar.
+	private async handleExit(
+		key: string,
+		exitCode: number | null
+	): Promise<void> {
 		const entry = this.activeRecordings.get(key)
 		if (!entry) return
 
@@ -186,13 +214,15 @@ export class StreamRecorder implements TwitchRecorder {
 		switch (reason.kind) {
 			case 'stopped-by-us':
 			case 'stream-ended':
-				void this.props.bus.publish(new RecordingFinishedEvent(commonEventData))
+				await this.props.bus.publish(
+					new RecordingFinishedEvent(commonEventData)
+				)
 				break
 			case 'error':
 				console.error(
 					`[recorder] ${key}: streamlink falhou (exit=${reason.exitCode}, signal=${reason.signalCode}). Últimas linhas de stderr:\n${reason.stderrTail.join('\n')}`
 				)
-				void this.props.bus.publish(
+				await this.props.bus.publish(
 					new RecordingFailedEvent({
 						...commonEventData,
 						exitCode: reason.exitCode,
