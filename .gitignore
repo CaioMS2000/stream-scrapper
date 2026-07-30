@@ -47,5 +47,13 @@ git-info-for-commit.sh
 .gemini
 *.md
 *.svg
+!README.md
 !WIP.md
 !apps/daemon/notes/*.md
+
+# Binários baixados via setup.ts (não commitar — cada dev/ambiente baixa)
+apps/daemon/bin/
+apps/daemon/venv/
+
+# Dados de runtime do daemon (banco + gravações)
+apps/daemon/data/
