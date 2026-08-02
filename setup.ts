@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-// biome-ignore-all lint/suspicious/noUndeclaredEnvVars: envs de config
 // desse bootstrap (FFMPEG_VERSION, STREAMLINK_VERSION, FFMPEG_SHA256) são
 // opcionais e específicas do setup — não fazem parte do runtime do daemon,
 // então não vivem no schema de env.ts.
@@ -73,17 +72,31 @@ async function exists(p: string): Promise<boolean> {
 	return await Bun.file(p).exists()
 }
 
+// Erro de HTTP com status, pra quem chama distinguir "não existe" de "deu ruim".
+class HttpError extends Error {
+	constructor(
+		message: string,
+		readonly status: number
+	) {
+		super(message)
+	}
+}
+
 // GET com backoff — cobre 99% dos casos de "rede oscilou" sem virar problema
 // pro dev. Total worst case: 3 tentativas separadas por 1s+2s = ~5s de espera.
+// Resposta 4xx não é oscilação: falha na hora, sem gastar os retries.
 async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
 	let lastError: unknown
 	for (let attempt = 0; attempt <= retries; attempt++) {
 		try {
 			const res = await fetch(url, { redirect: 'follow' })
-			if (!res.ok) throw new Error(`GET ${url} → ${res.status}`)
+			if (!res.ok) throw new HttpError(`GET ${url} → ${res.status}`, res.status)
 			return res
 		} catch (err) {
 			lastError = err
+			if (err instanceof HttpError && err.status >= 400 && err.status < 500) {
+				break
+			}
 			if (attempt < retries) {
 				const delay = 1000 * 2 ** attempt
 				warn(
@@ -127,11 +140,19 @@ function ffmpegArch(): string {
 	}
 }
 
-function ffmpegUrl(arch: string): string {
+// Candidatos de URL, em ordem de preferência. O upstream só move uma versão pra
+// old-releases quando ela é substituída por uma mais nova — enquanto for a atual,
+// ela existe só em /releases/ sob o nome genérico "release". Fixar a versão mais
+// recente portanto exige tentar os dois lugares (a validação de versão depois da
+// extração garante que o fallback não entregue outra coisa).
+function ffmpegUrls(arch: string): string[] {
 	const base = 'https://johnvansickle.com/ffmpeg'
-	return FFMPEG_VERSION === 'release'
-		? `${base}/releases/ffmpeg-release-${arch}-static.tar.xz`
-		: `${base}/old-releases/ffmpeg-${FFMPEG_VERSION}-${arch}-static.tar.xz`
+	const latest = `${base}/releases/ffmpeg-release-${arch}-static.tar.xz`
+	if (FFMPEG_VERSION === 'release') return [latest]
+	return [
+		`${base}/old-releases/ffmpeg-${FFMPEG_VERSION}-${arch}-static.tar.xz`,
+		latest,
+	]
 }
 
 // ---------------------------------------------------------------- ffmpeg
@@ -144,13 +165,29 @@ async function setupFfmpeg(): Promise<void> {
 	}
 
 	const arch = ffmpegArch()
-	const url = ffmpegUrl(arch)
-	log(`baixando ffmpeg (${arch}) de ${url}`)
+	const candidates = ffmpegUrls(arch)
 
 	const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'ffmpeg-'))
 	try {
 		const tarPath = path.join(tmp, 'ffmpeg.tar.xz')
-		const { sha256, md5 } = await download(url, tarPath)
+
+		// Primeiro candidato que baixar vence; 404 só é fatal no último.
+		let url = ''
+		let hashes: { sha256: string; md5: string } | undefined
+		for (const [i, candidate] of candidates.entries()) {
+			log(`baixando ffmpeg (${arch}) de ${candidate}`)
+			try {
+				hashes = await download(candidate, tarPath)
+				url = candidate
+				break
+			} catch (e) {
+				const last = i === candidates.length - 1
+				if (last || !(e instanceof HttpError) || e.status !== 404) throw e
+				warn(`não encontrado (404) — tentando o build atual`)
+			}
+		}
+		if (!hashes) throw new Error('nenhuma URL de ffmpeg disponível')
+		const { sha256, md5 } = hashes
 
 		if (FFMPEG_SHA256) {
 			if (sha256 !== FFMPEG_SHA256.toLowerCase()) {
@@ -200,6 +237,14 @@ async function setupFfmpeg(): Promise<void> {
 		log(`versão extraída: ${version}`)
 		if (FFMPEG_VERSION === 'release') {
 			log(`  → pra reproduzir, fixe FFMPEG_VERSION="${version}" no setup`)
+		} else if (version !== FFMPEG_VERSION) {
+			// Só acontece via fallback pra /releases/: a versão fixada saiu do ar e
+			// o build atual é outro. Falha em vez de instalar algo não pedido.
+			throw new Error(
+				`versão não confere: pediu ${FFMPEG_VERSION}, veio ${version}.\n` +
+					`  ${FFMPEG_VERSION} não está em old-releases nem é mais o build atual.\n` +
+					`  Atualize FFMPEG_VERSION para "${version}" (ou "release") no setup.`
+			)
 		}
 
 		await fs.mkdir(BIN_DIR, { recursive: true })
