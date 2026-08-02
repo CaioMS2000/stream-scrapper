@@ -1,0 +1,1 @@
+ALTER TABLE `channels` ADD `is_live` integer DEFAULT false NOT NULL;

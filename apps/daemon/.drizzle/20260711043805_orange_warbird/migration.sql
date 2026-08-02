@@ -1,0 +1,1 @@
+ALTER TABLE `stream` RENAME COLUMN `streamer_login` TO `channel_name`;

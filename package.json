@@ -1,24 +1,40 @@
 {
-  "name": "stream-scrapper",
-  "module": "index.ts",
-  "type": "module",
+  "name": "stream-scrapper-upgrade",
   "private": true,
   "scripts": {
-    "start": "bun index.ts 2800325069",
-    "start:live": "bun live.ts TEHb_twitch",
-    "start:record": "bun record.ts",
-    "start:monitor": "bun watch.ts",
-    "test": "bun test",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "biome format --write --no-errors-on-unmatched --files-ignore-unknown=true \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "bun scripts/smoke-e2e.ts",
+    "scrapper": "bun apps/cli/src/index.ts",
+    "setup": "bun setup.ts",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@caioms/biomejs-config": "latest",
-    "@biomejs/biome": "2.5.2",
+    "@biomejs/biome": "^2.5.2",
+    "@caioms/biomejs-config": "^1.1.13",
     "@types/bun": "^1.3.14",
+    "bun-types": "^1.3.14",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.8"
+    "lint-staged": "^17.0.8",
+    "turbo": "^2.10.4",
+    "typescript": "5.9.2"
   },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+  "engines": {
+    "node": ">=18"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "bun",
+      "version": "1.3.5"
+    }
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

@@ -3,9 +3,9 @@
   "extends": [
     "@caioms/biomejs-config/biome"
   ],
-  "linter":{
-    "rules":{
-      "style":{
+  "linter": {
+    "rules": {
+      "style": {
         "useImportType": "error"
       }
     }
@@ -14,5 +14,18 @@
     "parser": {
       "tailwindDirectives": true
     }
+  },
+  "files": {
+    "includes": [
+      "**/*",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/public",
+      "!*.js",
+      "!*.d.ts",
+      "!apps/daemon/.drizzle",
+      "!apps/daemon/bin",
+      "!apps/daemon/data"
+    ]
   }
 }

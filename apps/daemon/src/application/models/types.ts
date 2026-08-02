@@ -1,0 +1,13 @@
+export const VideoQuality = ['source', '1080p', '720p', '480p', '360p'] as const
+export type VideoQuality = (typeof VideoQuality)[number]
+
+export const DownloadStatus = [
+	'queued',
+	'downloading',
+	'completed',
+	'failed',
+] as const
+export type DownloadStatus = (typeof DownloadStatus)[number]
+
+export const RecordingStatus = ['recording', 'finished', 'failed'] as const
+export type RecordingStatus = (typeof RecordingStatus)[number]

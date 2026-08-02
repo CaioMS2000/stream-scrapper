@@ -1,5 +1,5 @@
 {
   "*.{js,jsx,ts,tsx,mjs,cjs}": [
-    "bunx biome format --write --no-errors-on-unmatched --files-ignore-unknown=true"
+    "bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
   ]
 }
