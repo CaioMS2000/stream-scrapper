@@ -38,6 +38,7 @@ yarn-error.log*
 *.pem
 
 # others
+.git.corrupted-backup
 .vscode
 commit-stages.sh
 generate-commit-message-task.md
