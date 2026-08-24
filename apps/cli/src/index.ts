@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
 import { registerAddChannel } from './commands/add-channel'
+import { registerDisableAutoRecording } from './commands/disable-auto-recording'
 import { registerEnableAutoRecording } from './commands/enable-auto-recording'
 import { registerPing } from './commands/ping'
+import { registerRemoveChannel } from './commands/remove-channel'
 
 const program = new Command()
 
@@ -14,5 +16,7 @@ program
 registerPing(program)
 registerAddChannel(program)
 registerEnableAutoRecording(program)
+registerDisableAutoRecording(program)
+registerRemoveChannel(program)
 
 program.parseAsync()
