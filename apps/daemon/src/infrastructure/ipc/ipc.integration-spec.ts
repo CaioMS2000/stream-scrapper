@@ -25,16 +25,21 @@ import {
 	AddChannelUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
+	ForceRecordUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
+	StartRecordingUseCase,
 } from '../../application/use-cases'
 import { applyMigrations, createDrizzle } from '../../lib/drizzle'
 import { createDatabase } from '../../lib/sqlite'
 import { success } from '../../result'
 import { FakeRecorder } from '../../test/recorder'
 import { FakeTwitchClient } from '../../test/twitch-client'
-import { DrizzleChannelRepository } from '../database/repositories'
-import { MediaStorage } from '../media-storage'
+import {
+	DrizzleChannelRepository,
+	DrizzleStreamRepository,
+} from '../database/repositories'
+import { MediaStorage, StreamMetaStorage } from '../media-storage'
 import { IpcServer } from './server'
 
 // Cliente mini pra teste: mimica o que o IpcClient do apps/cli faz, mas
@@ -89,7 +94,9 @@ describe('IPC integration', () => {
 		const db = createDrizzle(createDatabase(':memory:'))
 		applyMigrations(db)
 		channelRepository = new DrizzleChannelRepository({ drizzle: db })
+		const streamRepository = new DrizzleStreamRepository({ drizzle: db })
 		const storage = new MediaStorage({ rootPath: tmpDir })
+		const streamMetaStorage = new StreamMetaStorage()
 		const twitch = new FakeTwitchClient(
 			success({
 				id: '1',
@@ -119,6 +126,17 @@ describe('IPC integration', () => {
 			channelRepository,
 			recorder,
 		})
+		const startRecording = new StartRecordingUseCase({
+			streamRepository,
+			storage,
+			recorder,
+			streamMetaStorage,
+		})
+		const startRecord = new ForceRecordUseCase({
+			channelRepository,
+			twitch,
+			startRecording,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -127,6 +145,7 @@ describe('IPC integration', () => {
 				disableAutoRecording,
 				removeChannel,
 				listChannels,
+				startRecord,
 			},
 			socketPath,
 		})
@@ -295,5 +314,29 @@ describe('IPC integration', () => {
 				},
 			],
 		})
+	})
+
+	test('start-record num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'start-record',
+			username: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('start-record num canal cadastrado mas offline → envelope de erro', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'start-record',
+			username: 'lexi',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not live/i)
+		}
 	})
 })
