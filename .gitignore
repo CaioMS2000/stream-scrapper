@@ -50,6 +50,7 @@ git-info-for-commit.sh
 *.svg
 !README.md
 !WIP.md
+!RF.md
 !apps/daemon/notes/**/*.md
 !docs/**/*.md
 
