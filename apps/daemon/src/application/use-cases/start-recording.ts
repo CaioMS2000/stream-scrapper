@@ -33,7 +33,7 @@ export class StartRecordingUseCase {
 		startedAt,
 	}: UseCaseParams): Promise<UseCaseResponse> {
 		try {
-			await this.props.streamRepository.createStream({
+			await this.props.streamRepository.findOrCreateStream({
 				streamId,
 				channelName,
 				startedAt,

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { StreamRecordingFailedError } from '../../@errors'
 import {
 	MediaStorage,
 	StreamMetaStorage,
@@ -62,22 +61,20 @@ describe('StartRecordingUseCase', () => {
 		expect(existsSync(join(rootPath, 'lexi'))).toBe(true)
 	})
 
-	test('streamId duplicado → falha com StreamRecordingFailedError carregando cause', async () => {
-		const { useCase, recorder } = makeUseCase()
+	test('streamId já registrado (ex: Monitor já persistiu) → reusa a stream, não falha', async () => {
+		const { useCase, streamRepository, recorder } = makeUseCase()
 
-		// primeira execução: sucesso
-		const first = await useCase.execute(baseParams)
-		expect(first.isSuccess()).toBe(true)
+		// Simula o Monitor já tendo persistido a stream antes do
+		// StartRecordingUseCase rodar (fluxo desacoplado: quem detecta a live
+		// registra a stream direto, independente de gravar).
+		await streamRepository.findOrCreateStream(baseParams)
 
-		// segunda execução com mesmo streamId → UNIQUE constraint no repo
-		const second = await useCase.execute(baseParams)
+		const result = await useCase.execute(baseParams)
 
-		expect(second.isFailure()).toBe(true)
-		expect(second.value).toBeInstanceOf(StreamRecordingFailedError)
-		// cause preservado — provando que o subscriber pode inspecionar
-		expect((second.value as Error).cause).toBeDefined()
-
-		// recorder não foi chamado uma segunda vez
+		expect(result.isSuccess()).toBe(true)
+		// A proteção real contra gravação duplicada é do StreamRecorder
+		// (activeRecordings), não da unicidade de streamId no repo — aqui o
+		// recorder é acionado normalmente.
 		expect(recorder.recordCalls).toHaveLength(1)
 	})
 })
