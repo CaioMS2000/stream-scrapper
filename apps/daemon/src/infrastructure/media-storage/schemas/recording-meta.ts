@@ -11,8 +11,10 @@ export const recordingMetaFileSchemav1 = z.object({
 	// pra hidratar quando lemos o meta.json de volta pra update.
 	startedAt: z.coerce.date(),
 	endedAt: z.coerce.date().optional(),
-	quality: z.enum(VideoQuality),
-	status: z.enum(RecordingStatus),
+	// Ausentes enquanto a stream não tem gravação decidida — todo `stream`
+	// ganha meta.json mínimo (ver ChannelMonitor), independente de auto-record.
+	quality: z.enum(VideoQuality).optional(),
+	status: z.enum(RecordingStatus).optional(),
 	bytes: z.int().optional(),
 })
 export const recordingMetaFileSchema = z.discriminatedUnion(

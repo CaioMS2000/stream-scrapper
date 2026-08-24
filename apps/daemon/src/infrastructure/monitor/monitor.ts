@@ -4,6 +4,7 @@ import type {
 } from '@/application/repositories'
 import type { EventBus } from '../../@shared/events'
 import type { Optional } from '../../@shared/types'
+import type { MediaStorage, StreamMetaStorage } from '../media-storage'
 import type { TwitchClient } from '../twitch/client'
 import { ChannelLiveEvent, ChannelOfflineEvent } from './@events'
 
@@ -12,6 +13,8 @@ export type ChannelMonitorProps = {
 	twitch: TwitchClient
 	channelRepository: ChannelRepository
 	streamRepository: StreamRepository
+	storage: MediaStorage
+	streamMetaStorage: StreamMetaStorage
 	/**
 	 * Bus central compartilhado por todo o daemon. Monitor publica eventos
 	 * aqui; consumidores (use cases de start/stop recording, futuros
@@ -107,6 +110,29 @@ export class ChannelMonitor {
 					streamId: liveInfo.id,
 					startedAt: liveInfo.startedAt,
 					title: liveInfo.title,
+				})
+				// Mesmo raciocínio: todo `stream` ganha um meta.json mínimo no
+				// disco, independente de gravar. `StartRecordingUseCase` sobrescreve
+				// com o formato completo quando (e se) a gravação de fato começar —
+				// createStreamPath é determinístico, mesmo path sempre.
+				const { fullPath } = this.props.storage.createStreamPath({
+					channelName: channel.username,
+					streamId: liveInfo.id,
+					title: liveInfo.title,
+					startedAt: liveInfo.startedAt,
+				})
+				this.props.streamMetaStorage.writeStreamMeta({
+					storagePath: fullPath,
+					metaFile: this.props.streamMetaStorage.toMetaFile({
+						streamId: liveInfo.id,
+						channelName: channel.username,
+						title: liveInfo.title,
+						startedAt: liveInfo.startedAt,
+						endedAt: undefined,
+						bytes: undefined,
+						quality: undefined,
+						status: undefined,
+					}),
 				})
 				await this.props.bus.publish(
 					new ChannelLiveEvent({

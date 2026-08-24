@@ -127,6 +127,8 @@ async function main() {
 		twitch,
 		channelRepository,
 		streamRepository,
+		storage,
+		streamMetaStorage,
 		bus,
 	})
 

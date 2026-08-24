@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { EventBus } from '../../@shared/events'
 import { success } from '../../result'
 import { makeTestDb } from '../../test/db'
 import { FakeTwitchClient } from '../../test/twitch-client'
+import { MediaStorage, StreamMetaStorage } from '../media-storage'
 import { ChannelLiveEvent, ChannelOfflineEvent } from './@events'
 import { ChannelMonitor } from './monitor'
 
@@ -20,13 +24,26 @@ function makeMonitor(
 		}),
 		channelsResponse
 	)
+	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))
+	const storage = new MediaStorage({ rootPath })
+	const streamMetaStorage = new StreamMetaStorage()
 	const monitor = new ChannelMonitor({
 		twitch,
 		channelRepository,
 		streamRepository,
+		storage,
+		streamMetaStorage,
 		bus,
 	})
-	return { monitor, channelRepository, streamRepository, bus }
+	return {
+		monitor,
+		channelRepository,
+		streamRepository,
+		storage,
+		streamMetaStorage,
+		rootPath,
+		bus,
+	}
 }
 
 const liveStream = {
@@ -100,6 +117,43 @@ describe('ChannelMonitor', () => {
 			streamId: liveStream.id,
 		})
 		expect(stream.channelName).toBe('lexi')
+	})
+
+	test('canal transiciona pra live → meta.json mínimo existe, sem quality/status', async () => {
+		const { monitor, channelRepository, storage } = makeMonitor(
+			success({
+				users: [
+					{
+						id: '1',
+						login: 'lexi',
+						displayName: 'Lexi',
+						profileImageURL: '',
+						stream: liveStream,
+					},
+				],
+				notFoundUsers: [],
+			})
+		)
+		await channelRepository.addChannel('lexi', { name: 'Lexi' })
+
+		await monitor.startMonitoring()
+		monitor.stop()
+
+		const { fullPath } = storage.createStreamPath({
+			channelName: 'lexi',
+			streamId: liveStream.id,
+			title: liveStream.title,
+			startedAt: liveStream.createdAt,
+		})
+		const metaPath = join(fullPath, 'meta.json')
+		expect(existsSync(metaPath)).toBe(true)
+
+		const meta = JSON.parse(readFileSync(metaPath, 'utf8'))
+		expect(meta.streamId).toBe(liveStream.id)
+		expect(meta.channelName).toBe('lexi')
+		expect(meta.title).toBe(liveStream.title)
+		expect(meta.quality).toBeUndefined()
+		expect(meta.status).toBeUndefined()
 	})
 
 	test('canal sem transição (continua offline) → nem stream nem evento', async () => {
