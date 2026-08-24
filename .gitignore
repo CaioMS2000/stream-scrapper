@@ -43,6 +43,7 @@ yarn-error.log*
 .mcp.json
 .gemini
 *.sh
+!apps/daemon/spikes/**/*.sh
 *.txt
 *.md
 *.svg
@@ -51,6 +52,7 @@ yarn-error.log*
 !RF.md
 !ENGINEERING-WORKFLOW.md
 !apps/daemon/notes/**/*.md
+!apps/daemon/spikes/**/*.md
 !docs/**/*.md
 
 # Binários baixados via setup.ts (não commitar — cada dev/ambiente baixa)
