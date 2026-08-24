@@ -3,6 +3,7 @@ import type {
 	AddChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
+	DownloadVodUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
 	ForceStopUseCase,
@@ -29,6 +30,7 @@ export type IpcRouterProps = {
 	startRecord: ForceRecordUseCase
 	stopRecord: ForceStopUseCase
 	channelDetails: ChannelDetailsUseCase
+	downloadVod: DownloadVodUseCase
 }
 
 export class IpcRouter {
@@ -132,6 +134,18 @@ export class IpcRouter {
 
 				const { streams, ...channel } = result.value
 				return { ok: true, cmd: 'channel-details', channel, streams }
+			},
+
+			'download-vod': async req => {
+				const result = await this.props.downloadVod.execute({
+					streamId: req.streamId,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				return { ok: true, cmd: 'download-vod' }
 			},
 		}
 	}

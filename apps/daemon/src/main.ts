@@ -5,7 +5,9 @@ import {
 	AddChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
+	DownloadVodUseCase,
 	EnableAutoRecordingUseCase,
+	FinalizeDownloadUseCase,
 	FinalizeRecordingUseCase,
 	ForceRecordUseCase,
 	ForceStopUseCase,
@@ -15,11 +17,18 @@ import {
 	StopRecordingUseCase,
 } from './application/use-cases'
 import { config } from './config'
+import { resolveViaCdn } from './infrastructure/cdn-recovery'
 import {
 	DrizzleChannelRepository,
+	DrizzleDownloadRepository,
 	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from './infrastructure/database/repositories'
+import {
+	DownloadFailedEvent,
+	DownloadFinishedEvent,
+	HttpVodDownloader,
+} from './infrastructure/downloader'
 import { IpcServer } from './infrastructure/ipc'
 import { MediaStorage, StreamMetaStorage } from './infrastructure/media-storage'
 import {
@@ -56,6 +65,7 @@ async function main() {
 	const channelRepository = new DrizzleChannelRepository({ drizzle: db })
 	const streamRepository = new DrizzleStreamRepository({ drizzle: db })
 	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
+	const downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
 
 	// Serviços externos ────────────────────────────────────────────────────
 	const twitch = new TwitchClientImpl()
@@ -71,6 +81,17 @@ async function main() {
 
 	// Storage de arquivos locais 'meta.json'
 	const streamMetaStorage = new StreamMetaStorage()
+
+	// Baixa VODs recuperados via CDN (infrastructure/cdn-recovery) — worker
+	// HTTP dentro do processo, não um child process. Publica
+	// DownloadFinished/FailedEvent no bus quando termina, mesmo padrão do
+	// StreamRecorder pra gravação ao vivo.
+	const vodDownloader = new HttpVodDownloader({
+		bus,
+		downloadRepository,
+		segmentConcurrency: config.downloadSegmentConcurrency,
+		maxConcurrentDownloads: config.maxConcurrentDownloads,
+	})
 
 	// Use cases — instanciados no composition root. Comandos são chamados
 	// pelo IPC; reactions (start/stop recording) são acionadas via subscribe
@@ -121,6 +142,16 @@ async function main() {
 		streamRepository,
 		recordingRepository,
 	})
+	// Hoje só tenta o caminho B (recuperação via CDN) — ver
+	// docs/design/002-download-de-vods.md, seção "Fatiado — v1 implementado".
+	const downloadVod = new DownloadVodUseCase({
+		streamRepository,
+		downloadRepository,
+		storage,
+		downloader: vodDownloader,
+		resolveVod: resolveViaCdn,
+	})
+	const finalizeDownload = new FinalizeDownloadUseCase({ downloadRepository })
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -180,6 +211,22 @@ async function main() {
 		})
 		if (result.isFailure()) console.error('[finalize-recording]', result.value)
 	})
+	bus.subscribe(DownloadFinishedEvent, async event => {
+		const result = await finalizeDownload.execute({
+			streamId: event.streamId,
+			endedAt: event.endedAt,
+			status: 'completed',
+		})
+		if (result.isFailure()) console.error('[finalize-download]', result.value)
+	})
+	bus.subscribe(DownloadFailedEvent, async event => {
+		const result = await finalizeDownload.execute({
+			streamId: event.streamId,
+			endedAt: event.endedAt,
+			status: 'failed',
+		})
+		if (result.isFailure()) console.error('[finalize-download]', result.value)
+	})
 
 	monitor.startMonitoring()
 
@@ -196,6 +243,7 @@ async function main() {
 			startRecord,
 			stopRecord,
 			channelDetails,
+			downloadVod,
 		},
 		socketPath,
 	})
@@ -210,6 +258,11 @@ async function main() {
 			// Para todos os streamlink filhos ANTES do IPC — evita deixar
 			// child process órfão se o kernel bater no daemon logo depois.
 			await recorder.stopAll()
+			// TODO: downloads de VOD em andamento não são abortados/retomados no
+			// shutdown (decisão consciente de escopo, ver
+			// docs/design/002-download-de-vods.md) — um download interrompido
+			// aqui fica com status 'downloading' órfão até uma limpeza no boot
+			// existir.
 			// Fecha o listener e remove o arquivo de socket pra não deixar órfão.
 			await ipc.close()
 			resolve()

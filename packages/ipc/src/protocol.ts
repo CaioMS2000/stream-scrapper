@@ -63,6 +63,12 @@ export const ChannelDetailsRequest = z.object({
 })
 export type ChannelDetailsRequest = z.infer<typeof ChannelDetailsRequest>
 
+export const DownloadVodRequest = z.object({
+	cmd: z.literal('download-vod'),
+	streamId: z.string().min(1),
+})
+export type DownloadVodRequest = z.infer<typeof DownloadVodRequest>
+
 export const IpcRequest = z.discriminatedUnion('cmd', [
 	PingRequest,
 	AddChannelRequest,
@@ -73,6 +79,7 @@ export const IpcRequest = z.discriminatedUnion('cmd', [
 	StartRecordRequest,
 	StopRecordRequest,
 	ChannelDetailsRequest,
+	DownloadVodRequest,
 ])
 export type IpcRequest = z.infer<typeof IpcRequest>
 
@@ -192,6 +199,12 @@ export const ChannelDetailsResponse = z.object({
 })
 export type ChannelDetailsResponse = z.infer<typeof ChannelDetailsResponse>
 
+export const DownloadVodResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('download-vod'),
+})
+export type DownloadVodResponse = z.infer<typeof DownloadVodResponse>
+
 export const IpcResponse = z.union([
 	PingResponse,
 	AddChannelResponse,
@@ -202,6 +215,7 @@ export const IpcResponse = z.union([
 	StartRecordResponse,
 	StopRecordResponse,
 	ChannelDetailsResponse,
+	DownloadVodResponse,
 	IpcErrorResponse,
 ])
 export type IpcResponse = z.infer<typeof IpcResponse>

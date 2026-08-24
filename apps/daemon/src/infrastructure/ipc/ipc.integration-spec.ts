@@ -25,6 +25,7 @@ import {
 	AddChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
+	DownloadVodUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
 	ForceStopUseCase,
@@ -36,15 +37,24 @@ import {
 import { applyMigrations, createDrizzle } from '../../lib/drizzle'
 import { createDatabase } from '../../lib/sqlite'
 import { success } from '../../result'
+import { FakeVodDownloader } from '../../test/downloader'
 import { FakeRecorder } from '../../test/recorder'
 import { FakeTwitchClient } from '../../test/twitch-client'
+import type { CdnResolution } from '../cdn-recovery'
 import {
 	DrizzleChannelRepository,
+	DrizzleDownloadRepository,
 	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from '../database/repositories'
 import { MediaStorage, StreamMetaStorage } from '../media-storage'
 import { IpcServer } from './server'
+
+const FAKE_CDN_RESOLUTION: CdnResolution = {
+	host: 'fake-host.cloudfront.net',
+	baseUrl: 'https://fake-host.cloudfront.net/abc_lexi_sid_123/chunked',
+	segments: ['0.ts'],
+}
 
 // Cliente mini pra teste: mimica o que o IpcClient do apps/cli faz, mas
 // inline. O contrato do wire (framing + schemas) mora no @repo/ipc — testar
@@ -91,7 +101,9 @@ describe('IPC integration', () => {
 	let channelRepository: DrizzleChannelRepository
 	let streamRepository: DrizzleStreamRepository
 	let recordingRepository: DrizzleRecordingRepository
+	let downloadRepository: DrizzleDownloadRepository
 	let recorder: FakeRecorder
+	let vodDownloader: FakeVodDownloader
 
 	beforeEach(async () => {
 		tmpDir = mkdtempSync(join(tmpdir(), 'scrapper-integration-'))
@@ -104,6 +116,7 @@ describe('IPC integration', () => {
 		recordingRepository = new DrizzleRecordingRepository({
 			drizzle: db,
 		})
+		downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
 		const storage = new MediaStorage({ rootPath: tmpDir })
 		const streamMetaStorage = new StreamMetaStorage()
 		const twitch = new FakeTwitchClient(
@@ -158,6 +171,14 @@ describe('IPC integration', () => {
 			streamRepository,
 			recordingRepository,
 		})
+		vodDownloader = new FakeVodDownloader()
+		const downloadVod = new DownloadVodUseCase({
+			streamRepository,
+			downloadRepository,
+			storage,
+			downloader: vodDownloader,
+			resolveVod: async () => FAKE_CDN_RESOLUTION,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -169,6 +190,7 @@ describe('IPC integration', () => {
 				startRecord,
 				stopRecord,
 				channelDetails,
+				downloadVod,
 			},
 			socketPath,
 		})
@@ -470,5 +492,40 @@ describe('IPC integration', () => {
 		expect(stream?.recording?.endedAt?.toISOString()).toBe(
 			endedAt.toISOString()
 		)
+	})
+
+	test('download-vod pra streamId inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'download-vod',
+			streamId: 'ghost-stream',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+		expect(vodDownloader.downloadCalls).toHaveLength(0)
+	})
+
+	test('download-vod pra stream registrada → sucesso, cria download row e chama o downloader', async () => {
+		await streamRepository.findOrCreateStream({
+			streamId: 'sid-vod',
+			channelName: 'lexi',
+			title: 'vod stream',
+			startedAt: new Date('2026-07-01T10:00:00Z'),
+		})
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'download-vod',
+			streamId: 'sid-vod',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'download-vod' })
+
+		expect(vodDownloader.downloadCalls).toHaveLength(1)
+		expect(vodDownloader.downloadCalls[0]?.baseUrl).toBe(
+			FAKE_CDN_RESOLUTION.baseUrl
+		)
+
+		const download = await downloadRepository.findDownloadByStreamId('sid-vod')
+		expect(download?.status).toBe('downloading')
 	})
 })
