@@ -4,6 +4,7 @@ import type {
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
+	ForceStopUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
 } from '../../application/use-cases'
@@ -25,6 +26,7 @@ export type IpcRouterProps = {
 	removeChannel: RemoveChannelUseCase
 	listChannels: ListChannelsUseCase
 	startRecord: ForceRecordUseCase
+	stopRecord: ForceStopUseCase
 }
 
 export class IpcRouter {
@@ -103,6 +105,18 @@ export class IpcRouter {
 				}
 
 				return { ok: true, cmd: 'start-record' }
+			},
+
+			'stop-record': async req => {
+				const result = await this.props.stopRecord.execute({
+					channelName: req.username,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				return { ok: true, cmd: 'stop-record' }
 			},
 		}
 	}

@@ -7,6 +7,7 @@ import {
 	EnableAutoRecordingUseCase,
 	FinalizeRecordingUseCase,
 	ForceRecordUseCase,
+	ForceStopUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
 	StartRecordingUseCase,
@@ -103,6 +104,11 @@ async function main() {
 		twitch,
 		startRecording,
 	})
+	const stopRecord = new ForceStopUseCase({
+		channelRepository,
+		recorder,
+		stopRecording,
+	})
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -171,6 +177,7 @@ async function main() {
 			removeChannel,
 			listChannels,
 			startRecord,
+			stopRecord,
 		},
 		socketPath,
 	})

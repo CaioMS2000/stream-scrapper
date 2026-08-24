@@ -26,9 +26,11 @@ import {
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
+	ForceStopUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
 	StartRecordingUseCase,
+	StopRecordingUseCase,
 } from '../../application/use-cases'
 import { applyMigrations, createDrizzle } from '../../lib/drizzle'
 import { createDatabase } from '../../lib/sqlite'
@@ -137,6 +139,12 @@ describe('IPC integration', () => {
 			twitch,
 			startRecording,
 		})
+		const stopRecording = new StopRecordingUseCase({ recorder })
+		const stopRecord = new ForceStopUseCase({
+			channelRepository,
+			recorder,
+			stopRecording,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -146,6 +154,7 @@ describe('IPC integration', () => {
 				removeChannel,
 				listChannels,
 				startRecord,
+				stopRecord,
 			},
 			socketPath,
 		})
@@ -338,5 +347,41 @@ describe('IPC integration', () => {
 		if (!res.ok) {
 			expect(res.error).toMatch(/not live/i)
 		}
+	})
+
+	test('stop-record num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'stop-record',
+			username: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('stop-record num canal cadastrado sem gravação ativa → envelope de erro', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'stop-record',
+			username: 'lexi',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not currently recording/i)
+		}
+	})
+
+	test('stop-record num canal com gravação ativa → sucesso, chama recorder.stopStream', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		recorder.recording.add('lexi')
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'stop-record',
+			username: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'stop-record' })
+		expect(recorder.stopCalls).toEqual(['lexi'])
 	})
 })
