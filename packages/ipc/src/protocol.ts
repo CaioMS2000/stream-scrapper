@@ -45,6 +45,12 @@ export const ListChannelsRequest = z.object({
 })
 export type ListChannelsRequest = z.infer<typeof ListChannelsRequest>
 
+export const StartRecordRequest = z.object({
+	cmd: z.literal('start-record'),
+	username: z.string().min(1),
+})
+export type StartRecordRequest = z.infer<typeof StartRecordRequest>
+
 export const IpcRequest = z.discriminatedUnion('cmd', [
 	PingRequest,
 	AddChannelRequest,
@@ -52,6 +58,7 @@ export const IpcRequest = z.discriminatedUnion('cmd', [
 	DisableAutoRecordingRequest,
 	RemoveChannelRequest,
 	ListChannelsRequest,
+	StartRecordRequest,
 ])
 export type IpcRequest = z.infer<typeof IpcRequest>
 
@@ -120,6 +127,12 @@ export const ListChannelsResponse = z.object({
 })
 export type ListChannelsResponse = z.infer<typeof ListChannelsResponse>
 
+export const StartRecordResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('start-record'),
+})
+export type StartRecordResponse = z.infer<typeof StartRecordResponse>
+
 export const IpcResponse = z.union([
 	PingResponse,
 	AddChannelResponse,
@@ -127,6 +140,7 @@ export const IpcResponse = z.union([
 	DisableAutoRecordingResponse,
 	RemoveChannelResponse,
 	ListChannelsResponse,
+	StartRecordResponse,
 	IpcErrorResponse,
 ])
 export type IpcResponse = z.infer<typeof IpcResponse>
