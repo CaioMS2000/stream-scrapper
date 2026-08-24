@@ -3,6 +3,7 @@ import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
 import {
 	AddChannelUseCase,
+	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	FinalizeRecordingUseCase,
@@ -115,6 +116,11 @@ async function main() {
 		recorder,
 		stopRecording,
 	})
+	const channelDetails = new ChannelDetailsUseCase({
+		channelRepository,
+		streamRepository,
+		recordingRepository,
+	})
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -187,6 +193,7 @@ async function main() {
 			listChannels,
 			startRecord,
 			stopRecord,
+			channelDetails,
 		},
 		socketPath,
 	})

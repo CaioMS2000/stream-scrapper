@@ -23,6 +23,7 @@ import {
 } from '@repo/ipc'
 import {
 	AddChannelUseCase,
+	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
@@ -88,6 +89,8 @@ describe('IPC integration', () => {
 	let tmpDir: string
 	let socketPath: string
 	let channelRepository: DrizzleChannelRepository
+	let streamRepository: DrizzleStreamRepository
+	let recordingRepository: DrizzleRecordingRepository
 	let recorder: FakeRecorder
 
 	beforeEach(async () => {
@@ -97,8 +100,8 @@ describe('IPC integration', () => {
 		const db = createDrizzle(createDatabase(':memory:'))
 		applyMigrations(db)
 		channelRepository = new DrizzleChannelRepository({ drizzle: db })
-		const streamRepository = new DrizzleStreamRepository({ drizzle: db })
-		const recordingRepository = new DrizzleRecordingRepository({
+		streamRepository = new DrizzleStreamRepository({ drizzle: db })
+		recordingRepository = new DrizzleRecordingRepository({
 			drizzle: db,
 		})
 		const storage = new MediaStorage({ rootPath: tmpDir })
@@ -150,6 +153,11 @@ describe('IPC integration', () => {
 			recorder,
 			stopRecording,
 		})
+		const channelDetails = new ChannelDetailsUseCase({
+			channelRepository,
+			streamRepository,
+			recordingRepository,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -160,6 +168,7 @@ describe('IPC integration', () => {
 				listChannels,
 				startRecord,
 				stopRecord,
+				channelDetails,
 			},
 			socketPath,
 		})
@@ -388,5 +397,78 @@ describe('IPC integration', () => {
 		})
 		expect(res).toEqual({ ok: true, cmd: 'stop-record' })
 		expect(recorder.stopCalls).toEqual(['lexi'])
+	})
+
+	test('channel-details num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'channel-details',
+			username: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('channel-details com stream sem gravação → recording null no wire', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		await streamRepository.findOrCreateStream({
+			streamId: 'sid-no-rec',
+			channelName: 'lexi',
+			title: 'sem gravação',
+			startedAt: new Date('2026-07-01T10:00:00Z'),
+		})
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'channel-details',
+			username: 'lexi',
+		})
+		expect(res.ok).toBe(true)
+		if (!res.ok || res.cmd !== 'channel-details') return
+
+		expect(res.channel.username).toBe('lexi')
+		expect(res.streams).toHaveLength(1)
+		expect(res.streams[0]?.streamId).toBe('sid-no-rec')
+		expect(res.streams[0]?.recording).toBeNull()
+	})
+
+	test('channel-details com stream gravada → recording preenchido, datas fazem round-trip', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		await streamRepository.findOrCreateStream({
+			streamId: 'sid-rec',
+			channelName: 'lexi',
+			title: 'com gravação',
+			startedAt: new Date('2026-07-01T10:00:00Z'),
+		})
+		const endedAt = new Date('2026-07-01T12:00:00Z')
+		await recordingRepository.createRecording({
+			streamId: 'sid-rec',
+			startedAt: new Date('2026-07-01T10:00:00Z'),
+			status: 'finished',
+			quality: 'source',
+			storagePath: '/data/lexi/2026-07-01/com-gravacao(sid-rec)',
+			bytes: 999,
+		})
+		await recordingRepository.updateRecordingByStreamId({
+			streamId: 'sid-rec',
+			endedAt,
+			status: 'finished',
+			bytes: 999,
+		})
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'channel-details',
+			username: 'lexi',
+		})
+		expect(res.ok).toBe(true)
+		if (!res.ok || res.cmd !== 'channel-details') return
+
+		const stream = res.streams[0]
+		expect(stream?.recording?.status).toBe('finished')
+		expect(stream?.recording?.bytes).toBe(999)
+		expect(stream?.recording?.endedAt).toBeInstanceOf(Date)
+		expect(stream?.recording?.endedAt?.toISOString()).toBe(
+			endedAt.toISOString()
+		)
 	})
 })

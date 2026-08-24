@@ -57,6 +57,12 @@ export const StopRecordRequest = z.object({
 })
 export type StopRecordRequest = z.infer<typeof StopRecordRequest>
 
+export const ChannelDetailsRequest = z.object({
+	cmd: z.literal('channel-details'),
+	username: z.string().min(1),
+})
+export type ChannelDetailsRequest = z.infer<typeof ChannelDetailsRequest>
+
 export const IpcRequest = z.discriminatedUnion('cmd', [
 	PingRequest,
 	AddChannelRequest,
@@ -66,6 +72,7 @@ export const IpcRequest = z.discriminatedUnion('cmd', [
 	ListChannelsRequest,
 	StartRecordRequest,
 	StopRecordRequest,
+	ChannelDetailsRequest,
 ])
 export type IpcRequest = z.infer<typeof IpcRequest>
 
@@ -146,6 +153,45 @@ export const StopRecordResponse = z.object({
 })
 export type StopRecordResponse = z.infer<typeof StopRecordResponse>
 
+// Duplica os literais de VideoQuality/RecordingStatus (definidos em
+// apps/daemon/src/application/models/types.ts) — packages/ipc não pode
+// importar de apps/daemon (a dependência vai sempre no sentido oposto),
+// mesmo trade-off já aceito no resto do protocolo.
+const videoQuality = z.enum(['source', '1080p', '720p', '480p', '360p'])
+const recordingStatus = z.enum(['recording', 'finished', 'failed'])
+
+export const ChannelDetailsResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('channel-details'),
+	channel: z.object({
+		username: z.string(),
+		displayName: z.string(),
+		profileImageURL: z.string().nullable(),
+		isLive: z.boolean(),
+		autoRecord: z.boolean(),
+		qualityPref: videoQuality,
+		monitoredSince: z.coerce.date(),
+	}),
+	streams: z.array(
+		z.object({
+			streamId: z.string(),
+			title: z.string(),
+			startedAt: z.coerce.date(),
+			category: z.string().nullable(),
+			durationSeconds: z.number().nullable(),
+			recording: z
+				.object({
+					status: recordingStatus,
+					quality: videoQuality,
+					bytes: z.number().nullable(),
+					endedAt: z.coerce.date().nullable(),
+				})
+				.nullable(),
+		})
+	),
+})
+export type ChannelDetailsResponse = z.infer<typeof ChannelDetailsResponse>
+
 export const IpcResponse = z.union([
 	PingResponse,
 	AddChannelResponse,
@@ -155,6 +201,7 @@ export const IpcResponse = z.union([
 	ListChannelsResponse,
 	StartRecordResponse,
 	StopRecordResponse,
+	ChannelDetailsResponse,
 	IpcErrorResponse,
 ])
 export type IpcResponse = z.infer<typeof IpcResponse>

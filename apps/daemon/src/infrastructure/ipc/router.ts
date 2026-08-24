@@ -1,6 +1,7 @@
 import type { IpcRequest, IpcResponse } from '@repo/ipc'
 import type {
 	AddChannelUseCase,
+	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	ForceRecordUseCase,
@@ -27,6 +28,7 @@ export type IpcRouterProps = {
 	listChannels: ListChannelsUseCase
 	startRecord: ForceRecordUseCase
 	stopRecord: ForceStopUseCase
+	channelDetails: ChannelDetailsUseCase
 }
 
 export class IpcRouter {
@@ -117,6 +119,19 @@ export class IpcRouter {
 				}
 
 				return { ok: true, cmd: 'stop-record' }
+			},
+
+			'channel-details': async req => {
+				const result = await this.props.channelDetails.execute({
+					channelName: req.username,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				const { streams, ...channel } = result.value
+				return { ok: true, cmd: 'channel-details', channel, streams }
 			},
 		}
 	}
