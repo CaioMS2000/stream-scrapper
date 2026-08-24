@@ -36,14 +36,34 @@ export class DrizzleStreamRepository implements StreamRepository {
 		return record
 	}
 
+	async findOrCreateStream(params: CreateStreamParams): Promise<StreamModel> {
+		const { channelName, startedAt, title, category, streamId } = params
+		const [inserted] = await this.drizzle
+			.insert(streamTable)
+			.values({ channelName, startedAt, title, category, streamId })
+			.onConflictDoNothing({ target: streamTable.streamId })
+			.returning()
+
+		if (inserted) return inserted
+
+		return this.getStream({ streamId })
+	}
+
 	async getStream(params: GetStreamParams): Promise<StreamModel> {
-		const whereQuery = this.drizzle.select().from(streamTable).where
 		let record: StreamModel | undefined
 
 		if ('streamId' in params) {
-			record = whereQuery(eq(streamTable.streamId, params.streamId)).get()
+			record = this.drizzle
+				.select()
+				.from(streamTable)
+				.where(eq(streamTable.streamId, params.streamId))
+				.get()
 		} else if ('id' in params) {
-			record = whereQuery(eq(streamTable.id, params.id)).get()
+			record = this.drizzle
+				.select()
+				.from(streamTable)
+				.where(eq(streamTable.id, params.id))
+				.get()
 		}
 
 		if (!record) {

@@ -18,5 +18,6 @@ export type GetStreamParams =
 
 export interface StreamRepository {
 	createStream(params: CreateStreamParams): Promise<StreamModel>
+	findOrCreateStream(params: CreateStreamParams): Promise<StreamModel>
 	getStream(params: GetStreamParams): Promise<StreamModel>
 }
