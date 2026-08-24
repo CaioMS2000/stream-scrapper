@@ -4,9 +4,9 @@ export type RecordingModel = {
 	id: string
 	streamId: string
 	startedAt: Date
-	endedAt?: Date
+	endedAt: Date | null
 	status: RecordingStatus
 	quality: VideoQuality
 	storagePath: string
-	bytes?: number // o tamanho em bytes
+	bytes: number | null // o tamanho em bytes
 }
