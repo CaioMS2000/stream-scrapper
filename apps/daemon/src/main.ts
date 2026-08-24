@@ -119,6 +119,12 @@ async function main() {
 	// aqui, zero mudança em Monitor ou nos use cases.
 	// ═════════════════════════════════════════════════════════════════════
 	bus.subscribe(ChannelLiveEvent, async event => {
+		// Evento é publicado pra TODO canal que fica ao vivo, independente de
+		// autoRecord — outros subscribers (webhook, métrica) podem querer saber
+		// disso mesmo sem gravar. Quem decide se grava é este handler.
+		const channel = await channelRepository.findChannel(event.username)
+		if (!channel?.autoRecord) return
+
 		const result = await startRecording.execute({
 			channelName: event.username,
 			streamId: event.streamId,
