@@ -74,6 +74,9 @@ usa `@repo/ipc` (workspace protocol).
 
 ## Arquitetura
 
+Diagramas C4 (Context, Container e o fluxo assíncrono mais espinhoso do
+sistema) em [`docs/architecture/overview.md`](docs/architecture/overview.md).
+
 ### Hexagonal com dois driving adapters
 
 ```
@@ -264,26 +267,33 @@ mocking framework. Um erro no fake é um erro de TypeScript.
 
 ## Decisões técnicas + trade-offs
 
-- **Bun em vez de Node**: elimina toolchain (ts-node, esbuild, jest, dotenv)
-  — o runtime traz tudo. Custo: menor maturidade de ecossistema pra libs
-  não-standard. Mitigação: dependências são poucas e mainstream (zod,
-  commander, drizzle).
-- **SQLite em vez de Postgres**: single-process, single-node, sem
-  servidor. Custo: sem escala horizontal — mas é um daemon long-running,
-  não uma web app. Bun tem `bun:sqlite` nativo.
+As quatro decisões abaixo com uma alternativa plausível descartada têm ADR
+formal em [`docs/decisions/`](docs/decisions/), com contexto, opções
+consideradas e consequências completas:
+
+- **[Bun em vez de Node](docs/decisions/001-bun-runtime.md)**: elimina
+  toolchain (ts-node, esbuild, jest, dotenv) — o runtime traz tudo. Custo:
+  menor maturidade de ecossistema pra libs não-standard. Mitigação:
+  dependências são poucas e mainstream (zod, commander, drizzle).
+- **[SQLite em vez de Postgres](docs/decisions/002-sqlite-storage.md)**:
+  single-process, single-node, sem servidor. Custo: sem escala horizontal —
+  mas é um daemon long-running, não uma web app. Bun tem `bun:sqlite` nativo.
+- **[Unix socket em vez de HTTP](docs/decisions/003-unix-socket-ipc.md)**:
+  filho ~50µs por request, autenticação via permissão do FS (dono do socket
+  = quem pode falar), sem porta ocupada. Custo: cross-machine impossível —
+  mas daemon + CLI rodam no mesmo host por design.
+- **[streamlink como subprocess em vez de biblioteca](docs/decisions/004-streamlink-subprocess.md)**:
+  streamlink é Python, biblioteca não expõe estabilidade. Subprocess isola:
+  se streamlink crashar, o daemon continua vivo, `proc.exited` captura o
+  código e a gente lida. `SIGTERM` deixa o `.ts` fechar limpo; `SIGKILL`
+  fallback em 10s protege contra travados.
+
+Trade-offs menores, sem ADR próprio (decisão simples ou fácil de reverter):
+
 - **Drizzle em vez de Prisma/TypeORM**: SQL-first, tipos gerados,
   migrations versionadas. Sem runtime engine binary (Prisma) nem
   decorators (TypeORM). Migrations vivem em `.drizzle/` versionadas no
   git.
-- **Unix socket em vez de HTTP**: filho ~50µs por request, autenticação
-  via permissão do FS (dono do socket = quem pode falar), sem porta
-  ocupada. Custo: cross-machine impossível — mas daemon + CLI rodam no
-  mesmo host por design.
-- **streamlink como subprocess em vez de biblioteca**: streamlink é
-  Python, biblioteca não expõe estabilidade. Subprocess isola: se
-  streamlink crashar, o daemon continua vivo, `proc.exited` captura o
-  código e a gente lida. `SIGTERM` deixa o `.ts` fechar limpo; `SIGKILL`
-  fallback em 10s protege contra travados.
 - **`z.coerce.date()` em vez de reviver manual**: JSON.parse devolve
   string, zod hidrata pra `Date` — evita `new Date(str)` espalhado.
 
@@ -340,6 +350,9 @@ gravar → fechar meta.json com sucesso ou falha). Próximos passos:
 - **Retenção de gravações**: policy de expiração por canal (manter só
   últimas N ou últimos M dias). Job periódico via cron interno ou
   systemd timer externo.
+- **Teto de gravações simultâneas**: hoje sem limite de processos
+  `streamlink` concorrentes. Desenho da solução (não implementado ainda)
+  em [`docs/design/001-teto-de-gravacoes-simultaneas.md`](docs/design/001-teto-de-gravacoes-simultaneas.md).
 
 ## Referências profundas
 
