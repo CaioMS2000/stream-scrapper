@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
 import { registerAddChannel } from './commands/add-channel'
+import { registerChannelDetails } from './commands/channel-details'
 import { registerDisableAutoRecording } from './commands/disable-auto-recording'
 import { registerEnableAutoRecording } from './commands/enable-auto-recording'
 import { registerListChannels } from './commands/list-channels'
@@ -24,5 +25,6 @@ registerRemoveChannel(program)
 registerListChannels(program)
 registerStartRecord(program)
 registerStopRecord(program)
+registerChannelDetails(program)
 
 program.parseAsync()
