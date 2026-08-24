@@ -318,6 +318,7 @@ bun scrapper remove-channel <user>           # remove canal (bloqueado se estive
 bun scrapper list-channels                   # lista canais e o status de cada um
 bun scrapper start-record <user>             # força gravação (canal precisa estar ao vivo)
 bun scrapper stop-record <user>              # interrompe gravação em andamento
+bun scrapper channel-details <user>          # perfil do canal + streams e gravações
 ```
 
 Testes:

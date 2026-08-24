@@ -19,13 +19,15 @@
 - **RF08 — Parar gravação**: usuário interrompe uma gravação em andamento
   manualmente. Exposto como comando `stop-record`; bloqueado se o canal
   não estiver gravando no momento.
+- **RF09 — Detalhe do canal**: usuário vê o perfil completo de um canal
+  (incluindo campos que não aparecem em `list-channels`, como
+  `qualityPref`) e a lista de streams detectadas, cada uma marcada com a
+  gravação correspondente (`recording: null` = stream sem gravação).
+  Exposto como comando `channel-details`. Substitui a ideia original de
+  um comando separado só de "listar gravações" — fica tudo junto na
+  visão de detalhe do canal.
 
 ## Propostos
-
-### Controle de gravação
-
-- **RF09 — Listar gravações de um canal**: usuário vê o histórico de
-  gravações (data, duração, tamanho, status `finished`/`failed`).
 
 ### Políticas (já citadas no roadmap do README, sem comando de usuário ainda)
 
@@ -36,6 +38,6 @@
 
 ## Prioridade sugerida
 
-Gerenciamento de canal (RF04–RF06) e o controle manual de gravação
-(RF07–RF08) estão completos. RF09–RF11 ficam para depois, alinhados ao
-roadmap do README.
+Gerenciamento de canal (RF04–RF06), controle manual de gravação
+(RF07–RF08) e detalhe do canal (RF09) estão completos. RF10–RF11 ficam
+para depois, alinhados ao roadmap do README.
