@@ -13,14 +13,14 @@
   automática de um canal sem removê-lo do monitoramento (inverso do RF03).
 - **RF06 — Listar canais**: usuário vê os canais monitorados e o status de
   cada um (ao vivo/offline, gravando agora, auto-record ligado/desligado).
+- **RF07 — Forçar gravação**: usuário inicia a gravação de um canal
+  manualmente, mesmo sem auto-record ligado. Exposto como comando
+  `start-record`; bloqueado se o canal não estiver ao vivo.
 
 ## Propostos
 
 ### Controle de gravação
 
-- **RF07 — Forçar gravação**: usuário inicia a gravação de um canal
-  manualmente, mesmo sem auto-record ligado. Reusa o `StartRecordingUseCase`
-  já existente — só precisa de uma entrada nova no protocolo IPC.
 - **RF08 — Parar gravação**: usuário interrompe uma gravação em andamento
   manualmente.
 - **RF09 — Listar gravações de um canal**: usuário vê o histórico de
@@ -35,5 +35,6 @@
 
 ## Prioridade sugerida
 
-Gerenciamento de canal (RF04–RF06) está completo. RF07–RF11 ficam para
-depois, alinhados ao roadmap do README.
+Gerenciamento de canal (RF04–RF06) e o primeiro comando de controle de
+gravação (RF07) estão completos. RF08–RF11 ficam para depois, alinhados ao
+roadmap do README.

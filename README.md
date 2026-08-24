@@ -310,9 +310,13 @@ bun install
 bun apps/daemon/src/main.ts
 
 # Em outro terminal: usar o CLI
-bun scrapper ping                          # verifica que o daemon está vivo
-bun scrapper add-channel <username>        # cadastra canal pra monitorar
-bun scrapper enable-auto-recording <user>  # habilita gravação automática
+bun scrapper ping                            # verifica que o daemon está vivo
+bun scrapper add-channel <username>          # cadastra canal pra monitorar
+bun scrapper enable-auto-recording <user>    # habilita gravação automática
+bun scrapper disable-auto-recording <user>   # desliga gravação automática
+bun scrapper remove-channel <user>           # remove canal (bloqueado se estiver gravando)
+bun scrapper list-channels                   # lista canais e o status de cada um
+bun scrapper start-record <user>             # força gravação (canal precisa estar ao vivo)
 ```
 
 Testes:
