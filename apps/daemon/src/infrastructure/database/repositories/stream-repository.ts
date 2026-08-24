@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { StreamModel } from '@/application/models'
 import type {
 	CreateStreamParams,
@@ -73,5 +73,14 @@ export class DrizzleStreamRepository implements StreamRepository {
 		}
 
 		return record
+	}
+
+	async listStreamsByChannel(channelName: string): Promise<StreamModel[]> {
+		return this.drizzle
+			.select()
+			.from(streamTable)
+			.where(eq(streamTable.channelName, channelName.toLowerCase()))
+			.orderBy(desc(streamTable.startedAt))
+			.all()
 	}
 }
