@@ -8,6 +8,8 @@ const envSchema = z.object({
 	STREAM_SCRAPPER_STREAMLINK_BIN: z.string().optional(),
 	STREAM_SCRAPPER_FFMPEG_BIN: z.string().optional(),
 	STREAM_SCRAPPER_FFPROBE_BIN: z.string().optional(),
+	STREAM_SCRAPPER_MAX_CONCURRENT_DOWNLOADS: z.coerce.number().optional(),
+	STREAM_SCRAPPER_DOWNLOAD_SEGMENT_CONCURRENCY: z.coerce.number().optional(),
 })
 
 export const env = envSchema.parse(process.env)

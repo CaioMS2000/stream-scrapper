@@ -33,10 +33,20 @@ const ffprobeBinPath = env.STREAM_SCRAPPER_FFPROBE_BIN
 	? resolve(env.STREAM_SCRAPPER_FFPROBE_BIN)
 	: resolve(import.meta.dir, '..', 'bin', 'ffprobe')
 
+// Teto de downloads de VOD simultâneos e de segments em paralelo por
+// download — mesmo tipo de problema do design doc 001 (teto de gravações
+// simultâneas), instância nova pro downloader. Defaults conservadores;
+// ajustar via env conforme banda/disco disponível.
+const maxConcurrentDownloads = env.STREAM_SCRAPPER_MAX_CONCURRENT_DOWNLOADS ?? 2
+const downloadSegmentConcurrency =
+	env.STREAM_SCRAPPER_DOWNLOAD_SEGMENT_CONCURRENCY ?? 5
+
 export const config = {
 	dataDir,
 	databasePath: join(dataDir, 'storage.db'),
 	streamlinkBinPath,
 	ffmpegBinPath,
 	ffprobeBinPath,
+	maxConcurrentDownloads,
+	downloadSegmentConcurrency,
 } as const
