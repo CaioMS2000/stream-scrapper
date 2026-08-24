@@ -1,9 +1,36 @@
 # Design: download de VODs (recuperação de streams gravadas)
 
-**Status:** proposto, não implementado. Este documento captura o raciocínio
-de desenho discutido antes de escrever código — quando a implementação
-acontecer, revisitar e atualizar o Status pra "implementado" (ou registrar
-ADR se a decisão final divergir do que está proposto aqui).
+**Status:** parcialmente implementado (2026-08-24) — ver "Fatiado — v1
+implementado" abaixo. Este documento captura o raciocínio de desenho
+discutido antes/durante a implementação.
+
+## Fatiado — v1 implementado
+
+O usuário decidiu implementar **só o caminho B** primeiro (achar +
+baixar + persistir via CDN), deixando A e C pra depois. Registrado aqui
+explicitamente pra não virar esquecimento com o tempo:
+
+- **Implementado:** B (recuperação via CDN) + D (download de segments) + E
+  (persistência) — ponta a ponta, produz um `.ts` real no disco a partir de
+  só `channelName`+`streamId`+`startedAt` já persistidos.
+- **Não implementado ainda:** A (job de descoberta oficial via GQL,
+  `vodLookupStatus`) e C (auth/playlist oficial, com suporte a
+  `qualityPref`). `download-vod` hoje só tenta o caminho B — não há
+  fallback pro caminho oficial porque o caminho oficial não existe ainda.
+- **Harvesting automático de hosts não virou código de produção nesta
+  fatia.** O pool de hosts em `infrastructure/cdn-recovery/host-pool.ts` é
+  uma lista **estática**, seedada com os hosts já confirmados
+  empiricamente. Crescer isso automaticamente depende de A/C existirem
+  (precisa de algum `vodId` resolvido organicamente pra alimentar um
+  harvester) — até lá, `apps/daemon/spikes/04-cdn-host-harvest.sh` continua
+  sendo a ferramenta manual pra descobrir hosts novos e adicioná-los à
+  lista estática à mão.
+- **Limitação aceita:** só qualidade "chunked" (source) é alcançável via
+  CDN — não existe master playlist com variantes nesse caminho, então
+  `channel.qualityPref` não é respeitado nesta fatia.
+- Plano de implementação detalhado desta fatia:
+  `/home/caioms/.claude/plans/cuddly-twirling-eich.md` (local, fora do
+  repo — não linkar como referência permanente).
 
 ## Problema
 
