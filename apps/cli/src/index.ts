@@ -6,6 +6,7 @@ import { registerEnableAutoRecording } from './commands/enable-auto-recording'
 import { registerListChannels } from './commands/list-channels'
 import { registerPing } from './commands/ping'
 import { registerRemoveChannel } from './commands/remove-channel'
+import { registerStartRecord } from './commands/start-record'
 
 const program = new Command()
 
@@ -20,5 +21,6 @@ registerEnableAutoRecording(program)
 registerDisableAutoRecording(program)
 registerRemoveChannel(program)
 registerListChannels(program)
+registerStartRecord(program)
 
 program.parseAsync()
