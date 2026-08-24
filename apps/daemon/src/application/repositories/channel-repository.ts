@@ -34,5 +34,6 @@ export interface ChannelRepository {
 		params?: AddChannelOptionalParams
 	): Promise<ChannelModel>
 	updateChannel(channel: ChannelUpdateParams): Promise<ChannelModel>
+	deleteChannel(channel: string): Promise<void>
 	getAllChannels(): Promise<ChannelModel[]>
 }

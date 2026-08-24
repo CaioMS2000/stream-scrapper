@@ -22,6 +22,10 @@ type FakeRecorderConfig = {
 export class FakeRecorder implements TwitchRecorder {
 	readonly recordCalls: RecordCall[] = []
 	readonly stopCalls: string[] = []
+	// Espelha o `activeRecordings` do StreamRecorder real. Testes que
+	// precisam simular "canal gravando agora" sem rodar o fluxo completo de
+	// start-recording podem semear direto: `recorder.recording.add('lexi')`.
+	readonly recording = new Set<string>()
 
 	constructor(private readonly config: FakeRecorderConfig = {}) {}
 
@@ -30,6 +34,7 @@ export class FakeRecorder implements TwitchRecorder {
 			throw this.config.throwOnRecord
 		}
 		this.recordCalls.push(params)
+		this.recording.add(params.channelName.toLowerCase())
 		return {
 			id: `fake-${params.streamId}`,
 			streamId: params.streamId,
@@ -44,5 +49,10 @@ export class FakeRecorder implements TwitchRecorder {
 			throw this.config.throwOnStop
 		}
 		this.stopCalls.push(username)
+		this.recording.delete(username.toLowerCase())
+	}
+
+	isRecording(username: string): boolean {
+		return this.recording.has(username.toLowerCase())
 	}
 }

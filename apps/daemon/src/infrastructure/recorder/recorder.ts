@@ -126,6 +126,9 @@ export class StreamRecorder implements TwitchRecorder {
 		}
 	}
 
+	isRecording: TwitchRecorder['isRecording'] = username =>
+		this.activeRecordings.has(username.toLowerCase())
+
 	stopStream: TwitchRecorder['stopStream'] = async username => {
 		const key = username.toLowerCase()
 		const entry = this.activeRecordings.get(key)

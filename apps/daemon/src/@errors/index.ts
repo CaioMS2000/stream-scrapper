@@ -1,5 +1,6 @@
 export * from './channel-already-registered'
 export * from './channel-not-found'
+export * from './channel-recording-in-progress'
 export * from './stream-finalization-failed'
 export * from './stream-recording-failed'
 export * from './stream-stop-failed'

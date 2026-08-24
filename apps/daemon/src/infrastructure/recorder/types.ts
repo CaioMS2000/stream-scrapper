@@ -17,4 +17,5 @@ type RecordTwitchStreamParams = {
 export interface TwitchRecorder {
 	recordTwitchStream(params: RecordTwitchStreamParams): Promise<RecordingHandle>
 	stopStream(username: string): Promise<void>
+	isRecording(username: string): boolean
 }

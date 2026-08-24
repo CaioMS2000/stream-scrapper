@@ -66,6 +66,12 @@ export class DrizzleChannelRepository implements ChannelRepository {
 		return firstRecord
 	}
 
+	async deleteChannel(channel: string): Promise<void> {
+		await this.drizzle
+			.delete(channelsTable)
+			.where(eq(channelsTable.username, channel.toLowerCase()))
+	}
+
 	async getAllChannels(): Promise<ChannelModel[]> {
 		return this.drizzle.select().from(channelsTable).all()
 	}
