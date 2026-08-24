@@ -25,6 +25,7 @@ import {
 	AddChannelUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
+	ListChannelsUseCase,
 	RemoveChannelUseCase,
 } from '../../application/use-cases'
 import { applyMigrations, createDrizzle } from '../../lib/drizzle'
@@ -114,6 +115,10 @@ describe('IPC integration', () => {
 			channelRepository,
 			recorder,
 		})
+		const listChannels = new ListChannelsUseCase({
+			channelRepository,
+			recorder,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -121,6 +126,7 @@ describe('IPC integration', () => {
 				enableAutoRecording,
 				disableAutoRecording,
 				removeChannel,
+				listChannels,
 			},
 			socketPath,
 		})
@@ -260,5 +266,34 @@ describe('IPC integration', () => {
 		}
 
 		expect(await channelRepository.findChannel('lexi')).not.toBeNull()
+	})
+
+	test('list-channels sem canais cadastrados → lista vazia', async () => {
+		const res = await sendCommand(socketPath, { cmd: 'list-channels' })
+		expect(res).toEqual({ ok: true, cmd: 'list-channels', channels: [] })
+	})
+
+	test('list-channels reflete auto-record e gravação ativa', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		await sendCommand(socketPath, {
+			cmd: 'enable-auto-recording',
+			username: 'lexi',
+		})
+		recorder.recording.add('lexi')
+
+		const res = await sendCommand(socketPath, { cmd: 'list-channels' })
+		expect(res).toEqual({
+			ok: true,
+			cmd: 'list-channels',
+			channels: [
+				{
+					username: 'lexi',
+					displayName: 'Lexi',
+					isLive: false,
+					isRecording: true,
+					autoRecord: true,
+				},
+			],
+		})
 	})
 })

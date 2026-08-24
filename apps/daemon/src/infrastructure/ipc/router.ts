@@ -3,6 +3,7 @@ import type {
 	AddChannelUseCase,
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
+	ListChannelsUseCase,
 	RemoveChannelUseCase,
 } from '../../application/use-cases'
 
@@ -21,6 +22,7 @@ export type IpcRouterProps = {
 	enableAutoRecording: EnableAutoRecordingUseCase
 	disableAutoRecording: DisableAutoRecordingUseCase
 	removeChannel: RemoveChannelUseCase
+	listChannels: ListChannelsUseCase
 }
 
 export class IpcRouter {
@@ -74,6 +76,19 @@ export class IpcRouter {
 				}
 
 				return { ok: true, cmd: 'remove-channel' }
+			},
+
+			'list-channels': async () => {
+				const result = await this.props.listChannels.execute()
+
+				// L = never (não há caminho de falha hoje) — `.value` não tem
+				// `.message` nesse ramo, então usamos String() em vez de acessar
+				// a propriedade. Mantém a forma do handler idêntica aos outros.
+				if (result.isFailure()) {
+					return { ok: false, error: String(result.value) }
+				}
+
+				return { ok: true, cmd: 'list-channels', channels: result.value }
 			},
 		}
 	}

@@ -6,6 +6,7 @@ import {
 	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	FinalizeRecordingUseCase,
+	ListChannelsUseCase,
 	RemoveChannelUseCase,
 	StartRecordingUseCase,
 	StopRecordingUseCase,
@@ -84,6 +85,10 @@ async function main() {
 		channelRepository,
 		recorder,
 	})
+	const listChannels = new ListChannelsUseCase({
+		channelRepository,
+		recorder,
+	})
 	const startRecording = new StartRecordingUseCase({
 		streamRepository,
 		storage,
@@ -152,6 +157,7 @@ async function main() {
 			enableAutoRecording,
 			disableAutoRecording,
 			removeChannel,
+			listChannels,
 		},
 		socketPath,
 	})
