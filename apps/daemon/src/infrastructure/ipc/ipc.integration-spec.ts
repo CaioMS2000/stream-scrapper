@@ -39,6 +39,7 @@ import { FakeRecorder } from '../../test/recorder'
 import { FakeTwitchClient } from '../../test/twitch-client'
 import {
 	DrizzleChannelRepository,
+	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from '../database/repositories'
 import { MediaStorage, StreamMetaStorage } from '../media-storage'
@@ -97,6 +98,9 @@ describe('IPC integration', () => {
 		applyMigrations(db)
 		channelRepository = new DrizzleChannelRepository({ drizzle: db })
 		const streamRepository = new DrizzleStreamRepository({ drizzle: db })
+		const recordingRepository = new DrizzleRecordingRepository({
+			drizzle: db,
+		})
 		const storage = new MediaStorage({ rootPath: tmpDir })
 		const streamMetaStorage = new StreamMetaStorage()
 		const twitch = new FakeTwitchClient(
@@ -130,6 +134,7 @@ describe('IPC integration', () => {
 		})
 		const startRecording = new StartRecordingUseCase({
 			streamRepository,
+			recordingRepository,
 			storage,
 			recorder,
 			streamMetaStorage,

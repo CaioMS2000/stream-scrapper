@@ -16,6 +16,7 @@ import {
 import { config } from './config'
 import {
 	DrizzleChannelRepository,
+	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from './infrastructure/database/repositories'
 import { IpcServer } from './infrastructure/ipc'
@@ -53,6 +54,7 @@ async function main() {
 	const storage = new MediaStorage({ rootPath: config.dataDir })
 	const channelRepository = new DrizzleChannelRepository({ drizzle: db })
 	const streamRepository = new DrizzleStreamRepository({ drizzle: db })
+	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
 
 	// Serviços externos ────────────────────────────────────────────────────
 	const twitch = new TwitchClientImpl()
@@ -93,12 +95,16 @@ async function main() {
 	})
 	const startRecording = new StartRecordingUseCase({
 		streamRepository,
+		recordingRepository,
 		storage,
 		recorder,
 		streamMetaStorage,
 	})
 	const stopRecording = new StopRecordingUseCase({ recorder })
-	const finalizeRecording = new FinalizeRecordingUseCase({ streamMetaStorage })
+	const finalizeRecording = new FinalizeRecordingUseCase({
+		streamMetaStorage,
+		recordingRepository,
+	})
 	const startRecord = new ForceRecordUseCase({
 		channelRepository,
 		twitch,
@@ -147,6 +153,7 @@ async function main() {
 	bus.subscribe(RecordingFinishedEvent, async event => {
 		const result = await finalizeRecording.execute({
 			channelName: event.username,
+			streamId: event.streamId,
 			storagePath: event.storagePath,
 			endedAt: event.endedAt,
 			bytes: event.bytes,
@@ -157,6 +164,7 @@ async function main() {
 	bus.subscribe(RecordingFailedEvent, async event => {
 		const result = await finalizeRecording.execute({
 			channelName: event.username,
+			streamId: event.streamId,
 			storagePath: event.storagePath,
 			endedAt: event.endedAt,
 			bytes: event.bytes,
