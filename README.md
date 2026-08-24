@@ -317,6 +317,7 @@ bun scrapper disable-auto-recording <user>   # desliga gravação automática
 bun scrapper remove-channel <user>           # remove canal (bloqueado se estiver gravando)
 bun scrapper list-channels                   # lista canais e o status de cada um
 bun scrapper start-record <user>             # força gravação (canal precisa estar ao vivo)
+bun scrapper stop-record <user>              # interrompe gravação em andamento
 ```
 
 Testes:

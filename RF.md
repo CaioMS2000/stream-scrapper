@@ -16,13 +16,14 @@
 - **RF07 — Forçar gravação**: usuário inicia a gravação de um canal
   manualmente, mesmo sem auto-record ligado. Exposto como comando
   `start-record`; bloqueado se o canal não estiver ao vivo.
+- **RF08 — Parar gravação**: usuário interrompe uma gravação em andamento
+  manualmente. Exposto como comando `stop-record`; bloqueado se o canal
+  não estiver gravando no momento.
 
 ## Propostos
 
 ### Controle de gravação
 
-- **RF08 — Parar gravação**: usuário interrompe uma gravação em andamento
-  manualmente.
 - **RF09 — Listar gravações de um canal**: usuário vê o histórico de
   gravações (data, duração, tamanho, status `finished`/`failed`).
 
@@ -35,6 +36,6 @@
 
 ## Prioridade sugerida
 
-Gerenciamento de canal (RF04–RF06) e o primeiro comando de controle de
-gravação (RF07) estão completos. RF08–RF11 ficam para depois, alinhados ao
+Gerenciamento de canal (RF04–RF06) e o controle manual de gravação
+(RF07–RF08) estão completos. RF09–RF11 ficam para depois, alinhados ao
 roadmap do README.
