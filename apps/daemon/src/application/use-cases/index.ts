@@ -1,5 +1,7 @@
 export * from './add-channel'
+export * from './disable-auto-recording'
 export * from './enable-auto-recording'
 export * from './finalize-recording'
+export * from './remove-channel'
 export * from './start-recording'
 export * from './stop-recording'
