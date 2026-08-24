@@ -7,4 +7,5 @@ export type DownloadModel = {
 	progress: number | null
 	storagePath: string
 	createdAt: Date
+	endedAt: Date | null
 }

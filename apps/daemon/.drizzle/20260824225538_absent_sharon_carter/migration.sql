@@ -1,0 +1,2 @@
+ALTER TABLE `download` ADD `ended_at` integer;--> statement-breakpoint
+CREATE UNIQUE INDEX `download_active_stream_idx` ON `download` (`stream_id`) WHERE "download"."status" in ('queued', 'downloading');
