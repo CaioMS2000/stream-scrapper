@@ -50,7 +50,8 @@ git-info-for-commit.sh
 *.svg
 !README.md
 !WIP.md
-!apps/daemon/notes/*.md
+!apps/daemon/notes/**/*.md
+!docs/**/*.md
 
 # Binários baixados via setup.ts (não commitar — cada dev/ambiente baixa)
 apps/daemon/bin/
