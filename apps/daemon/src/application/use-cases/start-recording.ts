@@ -5,10 +5,11 @@ import type {
 } from '@/infrastructure/media-storage'
 import type { TwitchRecorder } from '@/infrastructure/recorder'
 import { failure, type Result, success } from '@/result'
-import type { StreamRepository } from '../repositories'
+import type { RecordingRepository, StreamRepository } from '../repositories'
 
 type UseCaseProps = {
 	streamRepository: StreamRepository
+	recordingRepository: RecordingRepository
 	storage: MediaStorage
 	recorder: TwitchRecorder
 	streamMetaStorage: StreamMetaStorage
@@ -58,6 +59,13 @@ export class StartRecordingUseCase {
 
 			this.props.streamMetaStorage.writeStreamMeta({
 				metaFile,
+				storagePath: fullPath,
+			})
+			await this.props.recordingRepository.createRecording({
+				streamId,
+				startedAt,
+				status: 'recording',
+				quality: 'source',
 				storagePath: fullPath,
 			})
 			await this.props.recorder.recordTwitchStream({

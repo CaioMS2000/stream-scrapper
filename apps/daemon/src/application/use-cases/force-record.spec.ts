@@ -7,6 +7,7 @@ import {
 	ChannelNotLiveError,
 	StreamRecordingFailedError,
 } from '../../@errors'
+import { DrizzleRecordingRepository } from '../../infrastructure/database/repositories'
 import {
 	MediaStorage,
 	StreamMetaStorage,
@@ -22,7 +23,8 @@ function makeUseCase(
 	twitchResponse: ConstructorParameters<typeof FakeTwitchClient>[0],
 	recorderConfig?: ConstructorParameters<typeof FakeRecorder>[0]
 ) {
-	const { channelRepository, streamRepository } = makeTestDb()
+	const { db, channelRepository, streamRepository } = makeTestDb()
+	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
 	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))
 	const storage = new MediaStorage({ rootPath })
 	const streamMetaStorage = new StreamMetaStorage()
@@ -30,6 +32,7 @@ function makeUseCase(
 	const twitch = new FakeTwitchClient(twitchResponse)
 	const startRecording = new StartRecordingUseCase({
 		streamRepository,
+		recordingRepository,
 		storage,
 		streamMetaStorage,
 		recorder,

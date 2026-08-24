@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DrizzleRecordingRepository } from '../../infrastructure/database/repositories'
 import {
 	MediaStorage,
 	StreamMetaStorage,
@@ -13,18 +14,27 @@ import { StartRecordingUseCase } from './start-recording'
 function makeUseCase(
 	recorderConfig?: ConstructorParameters<typeof FakeRecorder>[0]
 ) {
-	const { streamRepository } = makeTestDb()
+	const { db, streamRepository } = makeTestDb()
+	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
 	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))
 	const storage = new MediaStorage({ rootPath })
 	const streamMetaStorage = new StreamMetaStorage()
 	const recorder = new FakeRecorder(recorderConfig)
 	const useCase = new StartRecordingUseCase({
 		streamRepository,
+		recordingRepository,
 		storage,
 		streamMetaStorage,
 		recorder,
 	})
-	return { useCase, streamRepository, storage, recorder, rootPath }
+	return {
+		useCase,
+		streamRepository,
+		recordingRepository,
+		storage,
+		recorder,
+		rootPath,
+	}
 }
 
 const baseParams = {
@@ -36,7 +46,8 @@ const baseParams = {
 
 describe('StartRecordingUseCase', () => {
 	test('happy path → persiste, escreve meta.json e chama recorder', async () => {
-		const { useCase, storage, recorder, rootPath } = makeUseCase()
+		const { useCase, storage, recordingRepository, recorder, rootPath } =
+			makeUseCase()
 
 		const result = await useCase.execute(baseParams)
 
@@ -59,6 +70,13 @@ describe('StartRecordingUseCase', () => {
 
 		// diretório-raiz do canal foi criado sob o rootPath
 		expect(existsSync(join(rootPath, 'lexi'))).toBe(true)
+
+		// row em `recording` — DB é fonte queryável em paralelo ao meta.json
+		const recording =
+			await recordingRepository.findRecordingByStreamId('40952121362')
+		expect(recording?.status).toBe('recording')
+		expect(recording?.quality).toBe('source')
+		expect(recording?.storagePath).toBe(fullPath)
 	})
 
 	test('streamId já registrado (ex: Monitor já persistiu) → reusa a stream, não falha', async () => {
