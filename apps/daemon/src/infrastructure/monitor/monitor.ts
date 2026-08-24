@@ -1,4 +1,7 @@
-import type { ChannelRepository } from '@/application/repositories'
+import type {
+	ChannelRepository,
+	StreamRepository,
+} from '@/application/repositories'
 import type { EventBus } from '../../@shared/events'
 import type { Optional } from '../../@shared/types'
 import type { TwitchClient } from '../twitch/client'
@@ -8,6 +11,7 @@ export type ChannelMonitorProps = {
 	intervalMs: number
 	twitch: TwitchClient
 	channelRepository: ChannelRepository
+	streamRepository: StreamRepository
 	/**
 	 * Bus central compartilhado por todo o daemon. Monitor publica eventos
 	 * aqui; consumidores (use cases de start/stop recording, futuros
@@ -93,6 +97,17 @@ export class ChannelMonitor {
 				isLive,
 			})
 			if (liveInfo !== undefined) {
+				// Invariante, não reação: registra a stream ANTES de publicar o
+				// evento. Independente de autoRecord — todo canal que fica ao vivo
+				// deixa rastro em `stream`, gravando ou não. Se isso fosse um
+				// bus.subscribe, um erro seria engolido e a live sumiria sem deixar
+				// vestígio (ver notes/speculation-early-recorder-invariants-vs-reactions.md).
+				await this.props.streamRepository.findOrCreateStream({
+					channelName: channel.username,
+					streamId: liveInfo.id,
+					startedAt: liveInfo.startedAt,
+					title: liveInfo.title,
+				})
 				await this.props.bus.publish(
 					new ChannelLiveEvent({
 						username: channel.username,

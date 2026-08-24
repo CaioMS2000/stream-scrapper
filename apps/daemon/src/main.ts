@@ -114,6 +114,7 @@ async function main() {
 	const monitor = new ChannelMonitor({
 		twitch,
 		channelRepository,
+		streamRepository,
 		bus,
 	})
 

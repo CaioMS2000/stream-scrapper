@@ -11,14 +11,17 @@ export type GetChannelReturn = Awaited<
 type GetChannelsReturn = Awaited<ReturnType<TwitchClientImpl['getChannels']>>
 
 export class FakeTwitchClient implements TwitchClient {
-	constructor(private response: GetChannelReturn) {}
+	constructor(
+		private response: GetChannelReturn,
+		private channelsResponse: GetChannelsReturn = success({
+			users: [],
+			notFoundUsers: [],
+		})
+	) {}
 	async getChannel(): Promise<GetChannelReturn> {
 		return this.response
 	}
 	async getChannels(): Promise<GetChannelsReturn> {
-		// Não é exercitado por nenhum teste hoje; devolve vazio pra satisfazer a
-		// interface. Se algum teste passar a exigir isso, evolui pra receber
-		// resposta no construtor igual `getChannel`.
-		return success({ users: [], notFoundUsers: [] })
+		return this.channelsResponse
 	}
 }
