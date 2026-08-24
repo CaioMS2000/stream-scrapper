@@ -23,11 +23,14 @@ import {
 } from '@repo/ipc'
 import {
 	AddChannelUseCase,
+	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
+	RemoveChannelUseCase,
 } from '../../application/use-cases'
 import { applyMigrations, createDrizzle } from '../../lib/drizzle'
 import { createDatabase } from '../../lib/sqlite'
 import { success } from '../../result'
+import { FakeRecorder } from '../../test/recorder'
 import { FakeTwitchClient } from '../../test/twitch-client'
 import { DrizzleChannelRepository } from '../database/repositories'
 import { MediaStorage } from '../media-storage'
@@ -76,6 +79,7 @@ describe('IPC integration', () => {
 	let tmpDir: string
 	let socketPath: string
 	let channelRepository: DrizzleChannelRepository
+	let recorder: FakeRecorder
 
 	beforeEach(async () => {
 		tmpDir = mkdtempSync(join(tmpdir(), 'scrapper-integration-'))
@@ -102,9 +106,22 @@ describe('IPC integration', () => {
 		const enableAutoRecording = new EnableAutoRecordingUseCase({
 			channelRepository,
 		})
+		const disableAutoRecording = new DisableAutoRecordingUseCase({
+			channelRepository,
+		})
+		recorder = new FakeRecorder()
+		const removeChannel = new RemoveChannelUseCase({
+			channelRepository,
+			recorder,
+		})
 
 		server = new IpcServer({
-			deps: { addChannel, enableAutoRecording },
+			deps: {
+				addChannel,
+				enableAutoRecording,
+				disableAutoRecording,
+				removeChannel,
+			},
 			socketPath,
 		})
 		await server.listen()
@@ -174,5 +191,74 @@ describe('IPC integration', () => {
 		expect(res).toEqual({ ok: true, cmd: 'enable-auto-recording' })
 
 		expect((await channelRepository.findChannel('lexi'))?.autoRecord).toBe(true)
+	})
+
+	test('disable-auto-recording num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'disable-auto-recording',
+			username: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('disable-auto-recording após enable-auto-recording → flipa autoRecord na DB', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		await sendCommand(socketPath, {
+			cmd: 'enable-auto-recording',
+			username: 'lexi',
+		})
+		expect((await channelRepository.findChannel('lexi'))?.autoRecord).toBe(true)
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'disable-auto-recording',
+			username: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'disable-auto-recording' })
+
+		expect((await channelRepository.findChannel('lexi'))?.autoRecord).toBe(
+			false
+		)
+	})
+
+	test('remove-channel num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'remove-channel',
+			username: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('remove-channel sem gravação ativa → sucesso + row removida', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'remove-channel',
+			username: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'remove-channel' })
+
+		expect(await channelRepository.findChannel('lexi')).toBeNull()
+	})
+
+	test('remove-channel com gravação ativa → envelope de erro, row permanece', async () => {
+		await sendCommand(socketPath, { cmd: 'add-channel', username: 'lexi' })
+		recorder.recording.add('lexi')
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'remove-channel',
+			username: 'lexi',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/recording is in progress/i)
+		}
+
+		expect(await channelRepository.findChannel('lexi')).not.toBeNull()
 	})
 })

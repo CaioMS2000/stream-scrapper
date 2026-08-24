@@ -3,8 +3,10 @@ import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
 import {
 	AddChannelUseCase,
+	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
 	FinalizeRecordingUseCase,
+	RemoveChannelUseCase,
 	StartRecordingUseCase,
 	StopRecordingUseCase,
 } from './application/use-cases'
@@ -75,6 +77,13 @@ async function main() {
 	const enableAutoRecording = new EnableAutoRecordingUseCase({
 		channelRepository,
 	})
+	const disableAutoRecording = new DisableAutoRecordingUseCase({
+		channelRepository,
+	})
+	const removeChannel = new RemoveChannelUseCase({
+		channelRepository,
+		recorder,
+	})
 	const startRecording = new StartRecordingUseCase({
 		streamRepository,
 		storage,
@@ -138,7 +147,12 @@ async function main() {
 	// aos use cases. Cada use case ainda é agnóstico de quem chamou.
 	const socketPath = resolveSocketPath()
 	const ipc = new IpcServer({
-		deps: { addChannel, enableAutoRecording },
+		deps: {
+			addChannel,
+			enableAutoRecording,
+			disableAutoRecording,
+			removeChannel,
+		},
 		socketPath,
 	})
 	await ipc.listen()

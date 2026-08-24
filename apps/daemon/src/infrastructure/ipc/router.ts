@@ -1,7 +1,9 @@
 import type { IpcRequest, IpcResponse } from '@repo/ipc'
 import type {
 	AddChannelUseCase,
+	DisableAutoRecordingUseCase,
 	EnableAutoRecordingUseCase,
+	RemoveChannelUseCase,
 } from '../../application/use-cases'
 
 // Dispatch tipada dos comandos IPC. O Record `handlers` substitui um switch:
@@ -17,6 +19,8 @@ type Handlers = { [C in IpcRequest['cmd']]: Handler<C> }
 export type IpcRouterProps = {
 	addChannel: AddChannelUseCase
 	enableAutoRecording: EnableAutoRecordingUseCase
+	disableAutoRecording: DisableAutoRecordingUseCase
+	removeChannel: RemoveChannelUseCase
 }
 
 export class IpcRouter {
@@ -46,6 +50,30 @@ export class IpcRouter {
 				}
 
 				return { ok: true, cmd: 'enable-auto-recording' }
+			},
+
+			'disable-auto-recording': async req => {
+				const result = await this.props.disableAutoRecording.execute({
+					channelName: req.username,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				return { ok: true, cmd: 'disable-auto-recording' }
+			},
+
+			'remove-channel': async req => {
+				const result = await this.props.removeChannel.execute({
+					channelName: req.username,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				return { ok: true, cmd: 'remove-channel' }
 			},
 		}
 	}
