@@ -1,13 +1,16 @@
 import { StreamFinalizationFailedError } from '@/@errors'
 import type { StreamMetaStorage } from '@/infrastructure/media-storage'
 import { failure, type Result, success } from '@/result'
+import type { RecordingRepository } from '../repositories'
 
 type UseCaseProps = {
 	streamMetaStorage: StreamMetaStorage
+	recordingRepository: RecordingRepository
 }
 
 type UseCaseParams = {
 	channelName: string
+	streamId: string
 	storagePath: string
 	endedAt: Date
 	bytes: number | undefined
@@ -21,6 +24,7 @@ export class FinalizeRecordingUseCase {
 
 	async execute({
 		channelName,
+		streamId,
 		storagePath,
 		endedAt,
 		bytes,
@@ -30,6 +34,12 @@ export class FinalizeRecordingUseCase {
 			this.props.streamMetaStorage.updateStreamMeta({
 				storagePath,
 				patch: { endedAt, bytes, status },
+			})
+			await this.props.recordingRepository.updateRecordingByStreamId({
+				streamId,
+				endedAt,
+				bytes,
+				status,
 			})
 			return success(undefined)
 		} catch (error) {
