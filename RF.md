@@ -11,13 +11,10 @@
   RF02). Bloqueado se o canal estiver com uma gravação em andamento.
 - **RF05 — Desligar auto-recording**: usuário desabilita a gravação
   automática de um canal sem removê-lo do monitoramento (inverso do RF03).
-
-## Propostos
-
-### Gerenciamento de canal
-
 - **RF06 — Listar canais**: usuário vê os canais monitorados e o status de
   cada um (ao vivo/offline, gravando agora, auto-record ligado/desligado).
+
+## Propostos
 
 ### Controle de gravação
 
@@ -38,6 +35,5 @@
 
 ## Prioridade sugerida
 
-RF06 primeiro — fecha o trio de gerenciamento de canal junto com RF04/RF05,
-já implementados. RF07–RF11 ficam para depois, alinhados ao roadmap do
-README.
+Gerenciamento de canal (RF04–RF06) está completo. RF07–RF11 ficam para
+depois, alinhados ao roadmap do README.
