@@ -6,10 +6,12 @@ Aceito
 ## Contexto
 O daemon precisa gravar lives da Twitch que podem durar 12+ horas sem
 interrupção. A URL do HLS playback (`.m3u8`) é assinada com um token de curta
-duração (poucas horas, às vezes menos) — diferente do app access token da
-Helix usado pelo monitor, que dura ~60 dias e é gerenciado separadamente. Se o
-token de playback expira no meio de uma gravação longa, o consumidor da URL
-passa a receber 403 nos segments seguintes.
+duração (poucas horas, às vezes menos) — diferente do `Client-Id` público do
+GQL não-documentado usado pelo monitor para polling de status, que é um
+identificador fixo do client web da Twitch (não um token de sessão), sem
+expiração nem renovação. Se o token de playback expira no meio de uma
+gravação longa, o consumidor da URL passa a receber 403 nos segments
+seguintes.
 
 ## Opções consideradas
 
@@ -50,10 +52,11 @@ crítico.
 
 ## Consequências
 - O daemon **não precisa saber nada sobre o token de playback HLS** — essa
-  complexidade fica inteiramente dentro do streamlink. O daemon só cuida do
-  app token da Helix (usado pelo monitor pra polling da API pública).
-  Superfície de estado do daemon diminui por consequência direta desta
-  escolha.
+  complexidade fica inteiramente dentro do streamlink. O daemon não precisa
+  gerenciar nenhum ciclo de vida de token pro monitor: o polling de status usa
+  GQL não-documentado com `Client-Id` público fixo, sem expiração nem
+  renovação. Superfície de estado do daemon diminui por consequência direta
+  desta escolha.
 - Formato de saída é MPEG-TS, não MP4: streamlink concatena os segments HLS
   num único arquivo TS conforme chegam, sem passagem de mux — é o único jeito
   de gravar em tempo real sem uma segunda ferramenta escrevendo o header

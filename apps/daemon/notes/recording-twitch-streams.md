@@ -3,12 +3,15 @@
 Contexto: o daemon precisa gravar lives que podem durar 12+ horas. A escolha da
 ferramenta afeta robustez, complexidade do state e formato final.
 
-## O problema dos dois tokens
+## O problema do token de playback (e o Client-Id do monitor)
 
-O daemon lida com **dois tokens diferentes**, cada um com ciclo de vida próprio:
+O daemon lida com duas credenciais diferentes contra a Twitch, de natureza
+bem distinta:
 
-- **App access token da Helix** (monitor): client_credentials, dura ~60 dias, renovado
-  pelo próprio processo Node. Não interage com o gravador.
+- **`Client-Id` público do GQL** (monitor): identificador fixo do client web
+  da Twitch (`kimne78kx3ncx6brgo4mv6wki5h1ko`), sem OAuth, sem expiração, sem
+  renovação — não é de fato um "token" de sessão. Não interage com o
+  gravador.
 - **Access token do HLS playback** (gravador): assina a URL do `.m3u8` que o player
   consome. Dura poucas horas; segments podem ter janela ainda menor.
 
@@ -45,7 +48,8 @@ Ao modelar o gravador como child process supervisionado:
 
 - Spawn é `streamlink` (opcionalmente com pipe pra ffmpeg), **não** ffmpeg contra URL Twitch
 - Daemon Node **não precisa** saber sobre HLS playback token — streamlink resolve
-- Daemon Node **precisa** saber sobre app token da Helix (só o monitor)
+- Daemon Node **precisa** saber sobre o `Client-Id` GQL fixo (só o monitor,
+  sem ciclo de vida pra gerenciar)
 - Quando streamlink morre, cruzar com o monitor:
   - Canal ainda ao vivo → transiente (rede, token que streamlink não conseguiu renovar) → respawna
   - Canal offline → fim de live → encerra limpo

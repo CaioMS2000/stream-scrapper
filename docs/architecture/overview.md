@@ -61,7 +61,7 @@ flowchart TB
     daemon -- "escreve meta.json sidecar" --> fs
     daemon -- "spawna e supervisiona\n(Bun.spawn), 1 por gravação" --> streamlink
     streamlink -- "escreve .ts bruto\n(sem re-encoding)" --> fs
-    daemon -- "poll de status\n(Monitor, App token Helix)" --> twitch
+    daemon -- "poll de status\n(Monitor, GQL não-documentado)" --> twitch
     streamlink -- "consome playlist HLS assinado,\nre-autentica em token expirado" --> twitch
 
     style boundary fill:transparent,stroke:#888,stroke-dasharray: 4 3
