@@ -26,6 +26,11 @@
   Exposto como comando `channel-details`. Substitui a ideia original de
   um comando separado só de "listar gravações" — fica tudo junto na
   visão de detalhe do canal.
+- **RF12 — Gerenciar lista de harvest de CDN**: usuário adiciona, remove e
+  lista canais de terceiros usados pelo harvesting ativo de hosts de CDN
+  (`CdnHostHarvester`), sem precisar editar código/redeployar. Exposto
+  como `add-harvest-channel`/`remove-harvest-channel`/`list-harvest-channels`;
+  `add` é idempotente (canal repetido não duplica nem falha).
 
 ## Propostos
 
@@ -39,5 +44,6 @@
 ## Prioridade sugerida
 
 Gerenciamento de canal (RF04–RF06), controle manual de gravação
-(RF07–RF08) e detalhe do canal (RF09) estão completos. RF10–RF11 ficam
-para depois, alinhados ao roadmap do README.
+(RF07–RF08), detalhe do canal (RF09) e gestão da lista de harvest de CDN
+(RF12) estão completos. RF10–RF11 ficam para depois, alinhados ao roadmap
+do README.

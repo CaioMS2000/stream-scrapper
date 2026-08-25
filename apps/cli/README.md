@@ -13,6 +13,9 @@ bun scrapper list-channels                   # lista canais e o status de cada u
 bun scrapper start-record <user>             # força gravação (canal precisa estar ao vivo)
 bun scrapper stop-record <user>              # interrompe gravação em andamento
 bun scrapper channel-details <user>          # perfil do canal + streams e gravações
+bun scrapper add-harvest-channel <channel>   # adiciona canal à lista de harvesting ativo de CDN
+bun scrapper remove-harvest-channel <channel> # remove canal da lista de harvesting ativo
+bun scrapper list-harvest-channels           # lista os canais dessa lista
 ```
 
 Todos os comandos aceitam `--json` pra saída crua em vez do texto formatado.
