@@ -1,3 +1,5 @@
+import type { VodLookupStatus } from './types'
+
 export type StreamModel = {
 	id: string
 	streamId: string
@@ -7,4 +9,5 @@ export type StreamModel = {
 	category: string | null
 	durationSeconds: number | null
 	vodId: string | null
+	vodLookupStatus: VodLookupStatus
 }

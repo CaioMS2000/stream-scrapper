@@ -11,3 +11,6 @@ export type DownloadStatus = (typeof DownloadStatus)[number]
 
 export const RecordingStatus = ['recording', 'finished', 'failed'] as const
 export type RecordingStatus = (typeof RecordingStatus)[number]
+
+export const VodLookupStatus = ['pending', 'linked', 'unavailable'] as const
+export type VodLookupStatus = (typeof VodLookupStatus)[number]

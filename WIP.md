@@ -1,139 +1,89 @@
-# WIP: Refatorar Engine → use cases + conectar IPC pra valer
+# WIP: pipeline de download de VOD
 
-Grande missão em curso. Motivação: Engine hoje mistura dois papéis distintos
-(comandos vindos do IPC e reações vindas do bus), e a camada IPC está
-desconectada da aplicação — o único comando existente (`ping`) nem toca a
-Engine. Vamos adicionar vários comandos novos, então é a hora de estabelecer o
-pattern certo antes que a Engine cresça pra 15 métodos.
+Trabalho em andamento, dividido em 4 issues no Linear que formam um
+conjunto único — cada uma alimenta a próxima. Este arquivo existe pra
+retomar o trabalho mesmo numa sessão/máquina diferente, sem precisar
+reconstruir o contexto do zero.
 
-Referência conceitual: hexagonal / ports & adapters. Discussão longa em
-`Claude-Aplicação TypeScript de longa execução com interface CLI.md` (agente
-externo) + refinamento nesta conversa que ajusta o modelo pra nossa realidade.
+**Fonte de verdade do desenho**: [`docs/design/002-download-de-vods.md`](docs/design/002-download-de-vods.md).
+Esse documento tem o raciocínio completo — premissas, riscos, decisões
+tomadas e por quê. Este WIP só aponta pra lá e registra o estado de
+implementação + o que falta.
 
-## Modelo mental — hexagonal com bus
+**Evidência empírica**: toda a técnica (descoberta via GQL, reconstrução
+via CDN) foi validada contra a Twitch real antes de virar código — ver
+[`apps/daemon/spikes/FINDINGS.md`](apps/daemon/spikes/FINDINGS.md) e os
+scripts em [`apps/daemon/spikes/`](apps/daemon/spikes/).
 
-```
-Driving (quem aciona)        Núcleo (use cases)         Driven (o que é acionado)
-────────────────────         ──────────────────         ─────────────────────────
-CLI → IpcServer → Router  →                          →  ChannelRepository
-                            AddChannelUseCase           StreamRepository
-Monitor → EventBus        →  StartRecordingUseCase   →  MediaStorage
-                            StopRecordingUseCase        StreamRecorder (streamlink)
-                            ...                         TwitchClient (gateway)
-```
+## Premissa (resumo de 1 parágrafo)
 
-**Correção importante ao diagrama do agente externo (arquivo .md acima)**: o
-Monitor é **outro driving adapter**, não parte do núcleo. Ele detecta mudança
-externa (canal ao vivo na Twitch) e alimenta o núcleo via bus — análogo do CLI,
-só que a "porta" é o EventBus em vez do IPC socket.
+O daemon grava lives ao vivo, mas nem toda stream é capturada (daemon
+offline, gravação falha, etc.). Como já persistimos `channelName` +
+`streamId` + `startedAt` de toda stream que o Monitor já viu ao vivo, dá
+pra recuperar o VOD depois — pelo caminho oficial da Twitch (GQL) ou, se
+esse falhar, reconstruindo o path na CDN a partir desses mesmos dados
+(técnica confirmada funcionando até pra canais sem nenhuma VOD listada
+oficialmente).
 
-Use case não sabe quem o chamou. `StartRecordingUseCase.execute(...)` funciona
-igual se veio de `ChannelLiveEvent` ou de um hipotético comando `force-record`
-no CLI.
+## As 4 issues (Linear, projeto "Stream scrapper", time Caioms)
 
-## Simetria comandos ↔ eventos
+| Issue | O quê | Status | Depende de |
+|---|---|---|---|
+| [CAI-74](https://linear.app/caioms/issue/CAI-74) | Caminho A — descoberta oficial do `vodId` via GQL | ✅ **Feito** | — |
+| [CAI-75](https://linear.app/caioms/issue/CAI-75) | Caminho C — auth (`videoPlaybackAccessToken`) + resolução de playlist oficial, com `qualityPref` | ⬜ Não iniciado | — |
+| [CAI-76](https://linear.app/caioms/issue/CAI-76) | Orquestrar fallback entre caminho oficial (A/C) e recuperação via CDN (B) | ⬜ Não iniciado | CAI-74, CAI-75 |
+| [CAI-77](https://linear.app/caioms/issue/CAI-77) | Harvesting automático de hosts de CDN | ⬜ Não iniciado | CAI-74, CAI-75 |
 
-| | Comandos | Eventos |
-| --- | --- | --- |
-| Origem | Humano via socket | Monitor / outros producers via bus |
-| Dispatch | `Record<cmd, handler>` no Router | `bus.subscribe(EventClass, handler)` no wiring |
-| Handler | Thin adapter: parseia entrada + chama use case | Thin adapter: extrai payload + chama use case |
-| Use case | Mesma forma nos dois lados | Mesma forma nos dois lados |
-| Retorno | Serializado em `IpcResponse` | Descartado (ou dispara outro evento) |
+(O caminho B — recuperação via CDN — mais D/E — download + persistência —
+já estavam implementados **antes** dessas 4 issues existirem; são a base
+sobre a qual elas constroem. Ver seção "Fatiado — v1 implementado" no
+design doc.)
 
-Do lado do use case, a diferença é invisível.
+## Estado atual do código
 
-## Dispatch dos comandos — pattern que escala
+**Já implementado e testado:**
 
-`IpcRequest` no `@repo/ipc` já é **discriminated union por `cmd`**. Isso
-destrava dispatch tipada, sem switch crescente:
+- **B (CDN) + D (download) + E (persistência)** —
+  `apps/daemon/src/infrastructure/cdn-recovery/` (hash + pool de hosts +
+  resolver), `apps/daemon/src/infrastructure/downloader/`
+  (`HttpVodDownloader`), `DownloadVodUseCase` +
+  `FinalizeDownloadUseCase`, tabela `download` ligada. Comando IPC/CLI
+  `download-vod <streamId>`.
+- **A (descoberta oficial)** — `apps/daemon/src/application/use-cases/link-vod.ts`
+  (`LinkVodUseCase`, matching por proximidade `createdAt`×`startedAt`,
+  timeout 48h) + `apps/daemon/src/infrastructure/vod-linker/`
+  (`VodLinker`, scheduler periódico, 10min default, mesmo padrão de
+  `setTimeout` self-rescheduling do `ChannelMonitor`). Campo
+  `stream.vodLookupStatus` (`pending`/`linked`/`unavailable`). Método novo
+  `TwitchClient.getChannelVideos`. Validado contra a Twitch real (VOD
+  verdadeira da `apofigeaa` vinculada corretamente).
 
-```ts
-type Handler<C extends IpcRequest['cmd']> = (
-  req: Extract<IpcRequest, { cmd: C }>
-) => Promise<IpcResponse>
+**Ainda não existe:**
 
-type Handlers = { [C in IpcRequest['cmd']]: Handler<C> }
+- **C** — nenhum código de auth/playlist oficial. `DownloadVodUseCase` hoje
+  só tenta o caminho B, mesmo quando `stream.vodId` já está preenchido
+  pelo A.
+- **Orquestração (CAI-76)** — não existe nenhuma lógica de "tenta C, cai
+  pro B se falhar". A conversa que originou essa issue já mapeou o desenho:
+  um port comum (`type VodResolverFn = (params) => Promise<Resolution | null>`,
+  já é a assinatura de `resolveVod` que o `DownloadVodUseCase` recebe hoje)
+  + uma função `chainResolvers(...resolvers)` que tenta cada um em ordem e
+  só falha se todos falharem (mesmo padrão da `CredentialsProviderChain`
+  da AWS SDK). Ver histórico da conversa ou pedir esse trecho de novo se
+  precisar — não foi escrito em nenhum arquivo do repo ainda, só discutido.
+- **Harvesting automático (CAI-77)** — `host-pool.ts` continua lista
+  estática. Só existe o jeito manual
+  (`apps/daemon/spikes/04-cdn-host-harvest.sh`).
 
-const handlers: Handlers = {
-  ping: async () => ({ ok: true, cmd: 'ping', uptime: process.uptime() }),
-  'add-channel': async req => {
-    const result = await deps.addChannel.execute({ channel: req.username })
-    if (result.isFailure()) return { ok: false, error: result.value.message }
-    return { ok: true, cmd: 'add-channel', channel: result.value }
-  },
-  // ...
-}
+## Como retomar
 
-return (req: IpcRequest) => (handlers[req.cmd] as Handler<typeof req.cmd>)(req)
-```
+Ordem natural: **CAI-75 (C) → CAI-76 (orquestração) → CAI-77 (harvesting)**
+— é a ordem de dependência que as próprias issues já têm registrada.
 
-Ganhos:
-- **Exhaustiveness em compile time** — adicionar variante no union sem entrada
-  em `handlers` = erro do TS
-- **Type narrowing automático** — dentro de cada handler o `req` já é a
-  variante certa, autocompleta os campos
-- **Adicionar comando = 1 variante no schema + 1 chave no map**, zero mexida em
-  router logic
-- Único `as` sobra no return (TS não correlaciona `req.cmd` com a chave
-  automaticamente) — pontual, isolado
-
-## Wiring dos eventos — escala por volume de subscribes
-
-Eventos não precisam de Record — os próprios `bus.subscribe(...)` já são a
-"tabela declarativa". A organização segue por volume:
-
-- **2-3 subscribes** (estado atual): inline no `main.ts`, sem cerimônia
-- **5-6 subscribes**: extrair pra `wire-events.ts` que recebe `{ bus, useCases... }`
-- **10+ ou domínios distintos**: split (`wire-recording-events.ts`, `wire-notification-events.ts`)
-
-Super-poder do bus (que Record de comandos não tem): **fan-out** — mesmo
-evento pra múltiplos consumidores. Adicionar Discord notify amanhã:
-
-```ts
-bus.subscribe(ChannelLiveEvent, e => startRecording.execute(e))
-bus.subscribe(ChannelLiveEvent, e => discordNotify.execute(e))  // futuro
-bus.subscribe(ChannelLiveEvent, e => metrics.recordLiveDetected(e))  // futuro
-```
-
-Zero mexida em Monitor ou em StartRecordingUseCase. É a razão de existir o bus
-(ver [events-evolution.md](apps/daemon/notes/events-evolution.md)).
-
-## Ordem de execução recomendada
-
-1. **Extrair use cases dos 2 comandos existentes** — `AddChannelUseCase` e
-   `EnableAutoRecordingUseCase` em `src/use-cases/`. Cada um: classe fininha
-   com `execute(input)`, dependências via DI no construtor. Corpo movido da
-   Engine.
-2. **Refactor do router pro shape com Record** — `createRouter(deps)` passa a
-   receber os use cases em vez de `engine`. Adicionar entries `'add-channel'` e
-   `'enable-auto-recording'` no `handlers`. Adicionar as variantes correspondentes
-   no `IpcRequest` do `@repo/ipc`. `ping` continua trivial (não usa use case).
-3. **Adicionar comandos novos já no pattern novo** — cada um: 1 use case + 1
-   variante no schema + 1 chave no map. Zero refactor pra próximos.
-4. **Event handlers ficam onde estão até o gatilho disparar** — os 2 atuais
-   (`onStreamStarted`, `onStreamEnded`) ainda são poucos e cabem em Engine.
-   Quando aparecer o 3º (provavelmente `onRecordingFinished` pro rewrap MP4),
-   virar todos em use cases também: `StartRecordingUseCase`, `StopRecordingUseCase`,
-   `TriggerRewrapUseCase`. Subscribes em `main.ts` chamam os use cases. Engine
-   deixa de existir como classe, sobrevive só como conceito ("camada de aplicação").
-
-## Regras heurísticas de quando escalar
-
-- **Quando splittar comandos**: já — próximos comandos entram nesse molde
-- **Quando splittar event handlers**: quando aparecer o 3º reaction handler
-- **Quando extrair wiring de eventos do main**: quando as linhas de subscribe
-  passarem de ~5-6
-
-## Prerequisito: validar o Recorder real end-to-end
-
-Antes de abrir esse refactor, terminar o loop atual: `bun run src/main.ts` num
-terminal, adicionar canal via IPC no outro, aguardar ~30s, e ver o
-`data/<canal>/<data>/<title>(<streamId>)/stream.ts` crescer. Ctrl+C deve
-encerrar limpo com log `parada solicitada`. Confirmado esse caminho feliz, o
-refactor pode começar.
-
-Quando esse loop funcionar bem, os próximos incrementos que ficaram como TODO
-independentes do refactor são: eventos `RecordingFinished/Failed` no bus e job
-de re-mux MP4 (ffmpeg) — ambos justificados como fases separadas em
-[recorder-implementation.md](apps/daemon/notes/recorder-implementation.md).
+Pra CAI-75, o fluxo já foi validado empiricamente ponta a ponta em
+`apps/daemon/spikes/03-playback-access-token.sh` (query GQL raw pro
+`videoPlaybackAccessToken`, sem persisted query, funciona) — é questão de
+portar isso pro mesmo formato de `infrastructure/cdn-recovery/` (um
+`infrastructure/official-vod/` ou nome parecido), resolvendo a variante de
+qualidade certa via `channel.qualityPref` a partir do master playlist que o
+usher devolve.

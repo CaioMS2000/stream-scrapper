@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { VodLookupStatus } from '@/application/models/types'
 
 export const streamTable = sqliteTable('stream', {
 	id: text()
@@ -11,6 +12,9 @@ export const streamTable = sqliteTable('stream', {
 	category: text(),
 	durationSeconds: integer('duration_seconds'),
 	vodId: text('vod_id').unique(),
+	vodLookupStatus: text('vod_lookup_status', { enum: VodLookupStatus })
+		.notNull()
+		.default('pending'),
 })
 
 export type DrizzleStreamModel = typeof streamTable.$inferSelect

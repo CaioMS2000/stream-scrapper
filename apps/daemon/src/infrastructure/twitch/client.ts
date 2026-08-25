@@ -2,11 +2,19 @@ import type z from 'zod'
 import { ChannelNotFoundError } from '../../@errors'
 import { failure, type Result, success } from '../../result'
 import { gqlRequest } from './http/gql'
-import { GetChannelResponse, GetChannelsResponse } from './http/schemas'
+import {
+	GetChannelResponse,
+	GetChannelsResponse,
+	GetChannelVideosResponse,
+} from './http/schemas'
 
 type ChannelFromResponse = NonNullable<
 	z.infer<typeof GetChannelsResponse>['data']['users'][number]
 >
+
+type ChannelVideo = NonNullable<
+	z.infer<typeof GetChannelVideosResponse>['data']['user']
+>['videos']['edges'][number]['node']
 
 export interface TwitchClient {
 	getChannel(
@@ -26,6 +34,13 @@ export interface TwitchClient {
 			}
 		>
 	>
+	// VODs arquivadas do canal (type ARCHIVE), mais recentes primeiro — não
+	// expõe o streamId do broadcast, só id/createdAt/lengthSeconds da VOD.
+	// Ver docs/design/002-download-de-vods.md, seção A.
+	getChannelVideos(
+		login: string,
+		first?: number
+	): Promise<Result<ChannelNotFoundError, ChannelVideo[]>>
 }
 
 export class TwitchClientImpl implements TwitchClient {
@@ -83,5 +98,22 @@ export class TwitchClientImpl implements TwitchClient {
 		)
 
 		return success({ users, notFoundUsers })
+	}
+
+	async getChannelVideos(login: string, first = 20) {
+		const { data } = await gqlRequest({
+			operation: {
+				query:
+					'query($login: String!, $first: Int!) { user(login: $login) { videos(first: $first, type: ARCHIVE) { edges { node { id createdAt lengthSeconds } } } } }',
+				variables: { login, first },
+			},
+			schema: GetChannelVideosResponse,
+		})
+
+		if (data.user === null) {
+			return failure(new ChannelNotFoundError(login))
+		}
+
+		return success(data.user.videos.edges.map(edge => edge.node))
 	}
 }

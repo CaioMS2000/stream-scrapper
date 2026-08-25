@@ -1,9 +1,11 @@
 import { desc, eq } from 'drizzle-orm'
 import type { StreamModel } from '@/application/models'
+import type { VodLookupStatus } from '@/application/models/types'
 import type {
 	CreateStreamParams,
 	GetStreamParams,
 	StreamRepository,
+	UpdateVodLookupParams,
 } from '@/application/repositories'
 import type { DrizzleClient } from '@/lib/drizzle'
 import { streamTable } from '../schemas'
@@ -82,5 +84,32 @@ export class DrizzleStreamRepository implements StreamRepository {
 			.where(eq(streamTable.channelName, channelName.toLowerCase()))
 			.orderBy(desc(streamTable.startedAt))
 			.all()
+	}
+
+	async listStreamsByVodLookupStatus(
+		status: VodLookupStatus
+	): Promise<StreamModel[]> {
+		return this.drizzle
+			.select()
+			.from(streamTable)
+			.where(eq(streamTable.vodLookupStatus, status))
+			.all()
+	}
+
+	async updateVodLookup(params: UpdateVodLookupParams): Promise<StreamModel> {
+		const { streamId, ...patch } = params
+		const [firstRecord] = await this.drizzle
+			.update(streamTable)
+			.set(patch)
+			.where(eq(streamTable.streamId, streamId))
+			.returning()
+
+		if (!firstRecord) {
+			throw new Error(
+				`PANIC! Stream with streamId ${streamId} failed to update vod lookup!`
+			)
+		}
+
+		return firstRecord
 	}
 }

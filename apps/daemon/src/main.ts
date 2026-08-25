@@ -11,6 +11,7 @@ import {
 	FinalizeRecordingUseCase,
 	ForceRecordUseCase,
 	ForceStopUseCase,
+	LinkVodUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
 	StartRecordingUseCase,
@@ -42,6 +43,7 @@ import {
 	StreamRecorder,
 } from './infrastructure/recorder'
 import { TwitchClientImpl } from './infrastructure/twitch/client'
+import { VodLinker } from './infrastructure/vod-linker'
 import { applyMigrations, createDrizzle } from './lib/drizzle'
 import { createDatabase } from './lib/sqlite'
 
@@ -152,6 +154,9 @@ async function main() {
 		resolveVod: resolveViaCdn,
 	})
 	const finalizeDownload = new FinalizeDownloadUseCase({ downloadRepository })
+	// Caminho A: descoberta oficial de VOD via GQL — ver
+	// docs/design/002-download-de-vods.md, seção A.
+	const linkVod = new LinkVodUseCase({ streamRepository, twitchClient: twitch })
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -162,6 +167,10 @@ async function main() {
 		streamMetaStorage,
 		bus,
 	})
+
+	// Job periódico que descobre o vodId oficial de streams pendentes —
+	// cadência bem mais lenta que o Monitor (default 10min, ver vod-linker.ts).
+	const vodLinker = new VodLinker({ streamRepository, linkVod })
 
 	// ═════════════════════════════════════════════════════════════════════
 	// A PONTE Monitor → use cases (via bus)
@@ -229,6 +238,7 @@ async function main() {
 	})
 
 	monitor.startMonitoring()
+	vodLinker.start()
 
 	// Camada de IPC: escuta o socket e traduz comandos do CLI em chamadas
 	// aos use cases. Cada use case ainda é agnóstico de quem chamou.
@@ -255,6 +265,7 @@ async function main() {
 		const shutdown = async (signal: NodeJS.Signals) => {
 			console.log(`\nreceived ${signal}, shutting down...`)
 			monitor.stop()
+			vodLinker.stop()
 			// Para todos os streamlink filhos ANTES do IPC — evita deixar
 			// child process órfão se o kernel bater no daemon logo depois.
 			await recorder.stopAll()

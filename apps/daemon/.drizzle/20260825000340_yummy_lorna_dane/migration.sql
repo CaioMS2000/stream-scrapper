@@ -1,0 +1,1 @@
+ALTER TABLE `stream` ADD `vod_lookup_status` text DEFAULT 'pending' NOT NULL;
