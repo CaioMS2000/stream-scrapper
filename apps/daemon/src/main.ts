@@ -37,6 +37,7 @@ import {
 	ChannelMonitor,
 	ChannelOfflineEvent,
 } from './infrastructure/monitor'
+import { resolveViaOfficial } from './infrastructure/official-vod'
 import {
 	RecordingFailedEvent,
 	RecordingFinishedEvent,
@@ -144,14 +145,18 @@ async function main() {
 		streamRepository,
 		recordingRepository,
 	})
-	// Hoje só tenta o caminho B (recuperação via CDN) — ver
-	// docs/design/002-download-de-vods.md, seção "Fatiado — v1 implementado".
+	// Tenta o caminho oficial (C) primeiro quando a stream já tem `vodId`,
+	// cai pro CDN (B) só se o oficial não resolver — ver
+	// docs/design/002-download-de-vods.md e DownloadVodUseCase.
 	const downloadVod = new DownloadVodUseCase({
 		streamRepository,
 		downloadRepository,
+		channelRepository,
 		storage,
 		downloader: vodDownloader,
-		resolveVod: resolveViaCdn,
+		resolveCdn: resolveViaCdn,
+		resolveOfficial: params =>
+			resolveViaOfficial(params, { twitchClient: twitch }),
 	})
 	const finalizeDownload = new FinalizeDownloadUseCase({ downloadRepository })
 	// Caminho A: descoberta oficial de VOD via GQL — ver

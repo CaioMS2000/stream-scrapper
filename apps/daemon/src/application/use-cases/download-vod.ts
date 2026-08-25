@@ -8,18 +8,26 @@ import {
 import type { resolveViaCdn } from '@/infrastructure/cdn-recovery'
 import type { VodDownloader } from '@/infrastructure/downloader'
 import type { MediaStorage } from '@/infrastructure/media-storage'
+import type { resolveViaOfficial } from '@/infrastructure/official-vod'
 import { failure, type Result, success } from '@/result'
-import type { DownloadRepository, StreamRepository } from '../repositories'
+import type {
+	ChannelRepository,
+	DownloadRepository,
+	StreamRepository,
+} from '../repositories'
 
 type UseCaseProps = {
 	streamRepository: StreamRepository
 	downloadRepository: DownloadRepository
+	channelRepository: ChannelRepository
 	storage: MediaStorage
 	downloader: VodDownloader
-	// Injetado (não importado direto) porque faz fetch de rede real — testes
-	// de use case passam um fake, sem tocar a CDN de verdade. Produção passa
-	// a função real de infrastructure/cdn-recovery (ver main.ts).
-	resolveVod: typeof resolveViaCdn
+	// Injetados (não importados direto) porque fazem fetch de rede real —
+	// testes de use case passam fakes, sem tocar Twitch/CDN de verdade.
+	// Produção passa as funções reais de infrastructure/cdn-recovery e
+	// infrastructure/official-vod (ver main.ts).
+	resolveCdn: typeof resolveViaCdn
+	resolveOfficial: typeof resolveViaOfficial
 }
 
 type UseCaseParams = {
@@ -35,10 +43,14 @@ type UseCaseResponse = Result<
 	void
 >
 
-// Hoje só tenta o caminho B (recuperação via CDN, ver
-// infrastructure/cdn-recovery) — o caminho oficial (A: descoberta via GQL,
-// C: auth/playlist oficial) ainda não existe. Ver
-// docs/design/002-download-de-vods.md, seção "Fatiado — v1 implementado".
+// Tenta o caminho oficial (C) primeiro quando a stream já tem `vodId`
+// (populado pelo caminho A, ver LinkVodUseCase) — só ele respeita
+// `channel.qualityPref`, e usa o mesmo caminho de auth que qualquer
+// visualizador anônimo usaria. Cai pro caminho B (CDN) só quando o
+// oficial não resolve (sem vodId ainda, VOD deletada/sub-only, usher
+// fora do ar) — B contorna deliberadamente um controle de acesso da
+// Twitch/streamer (zona cinzenta de ToS, ver Risco #3 do design doc), não
+// é a primeira escolha. Ver docs/design/002-download-de-vods.md.
 export class DownloadVodUseCase {
 	constructor(private readonly props: UseCaseProps) {}
 
@@ -61,11 +73,26 @@ export class DownloadVodUseCase {
 			startedAt: stream.startedAt,
 		})
 
-		const resolved = await this.props.resolveVod({
-			channelName: stream.channelName,
-			streamId: stream.streamId,
-			startedAt: stream.startedAt,
-		})
+		let resolved: Awaited<ReturnType<typeof this.props.resolveCdn>> = null
+
+		if (stream.vodId) {
+			const channel = await this.props.channelRepository.findChannel(
+				stream.channelName
+			)
+			resolved = await this.props.resolveOfficial({
+				vodId: stream.vodId,
+				qualityPref: channel?.qualityPref ?? 'source',
+			})
+		}
+
+		if (!resolved) {
+			resolved = await this.props.resolveCdn({
+				channelName: stream.channelName,
+				streamId: stream.streamId,
+				startedAt: stream.startedAt,
+			})
+		}
+
 		if (!resolved) {
 			return failure(new VodNotRecoverableError(streamId))
 		}

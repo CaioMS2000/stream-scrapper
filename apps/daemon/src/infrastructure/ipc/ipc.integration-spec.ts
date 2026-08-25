@@ -175,9 +175,11 @@ describe('IPC integration', () => {
 		const downloadVod = new DownloadVodUseCase({
 			streamRepository,
 			downloadRepository,
+			channelRepository,
 			storage,
 			downloader: vodDownloader,
-			resolveVod: async () => FAKE_CDN_RESOLUTION,
+			resolveCdn: async () => FAKE_CDN_RESOLUTION,
+			resolveOfficial: async () => null,
 		})
 
 		server = new IpcServer({
