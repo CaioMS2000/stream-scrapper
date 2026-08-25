@@ -69,6 +69,27 @@ export const DownloadVodRequest = z.object({
 })
 export type DownloadVodRequest = z.infer<typeof DownloadVodRequest>
 
+export const AddHarvestChannelRequest = z.object({
+	cmd: z.literal('add-harvest-channel'),
+	channelName: z.string().min(1),
+})
+export type AddHarvestChannelRequest = z.infer<typeof AddHarvestChannelRequest>
+
+export const RemoveHarvestChannelRequest = z.object({
+	cmd: z.literal('remove-harvest-channel'),
+	channelName: z.string().min(1),
+})
+export type RemoveHarvestChannelRequest = z.infer<
+	typeof RemoveHarvestChannelRequest
+>
+
+export const ListHarvestChannelsRequest = z.object({
+	cmd: z.literal('list-harvest-channels'),
+})
+export type ListHarvestChannelsRequest = z.infer<
+	typeof ListHarvestChannelsRequest
+>
+
 export const IpcRequest = z.discriminatedUnion('cmd', [
 	PingRequest,
 	AddChannelRequest,
@@ -80,6 +101,9 @@ export const IpcRequest = z.discriminatedUnion('cmd', [
 	StopRecordRequest,
 	ChannelDetailsRequest,
 	DownloadVodRequest,
+	AddHarvestChannelRequest,
+	RemoveHarvestChannelRequest,
+	ListHarvestChannelsRequest,
 ])
 export type IpcRequest = z.infer<typeof IpcRequest>
 
@@ -205,6 +229,31 @@ export const DownloadVodResponse = z.object({
 })
 export type DownloadVodResponse = z.infer<typeof DownloadVodResponse>
 
+export const AddHarvestChannelResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('add-harvest-channel'),
+})
+export type AddHarvestChannelResponse = z.infer<
+	typeof AddHarvestChannelResponse
+>
+
+export const RemoveHarvestChannelResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('remove-harvest-channel'),
+})
+export type RemoveHarvestChannelResponse = z.infer<
+	typeof RemoveHarvestChannelResponse
+>
+
+export const ListHarvestChannelsResponse = z.object({
+	ok: z.literal(true),
+	cmd: z.literal('list-harvest-channels'),
+	channels: z.array(z.string()),
+})
+export type ListHarvestChannelsResponse = z.infer<
+	typeof ListHarvestChannelsResponse
+>
+
 export const IpcResponse = z.union([
 	PingResponse,
 	AddChannelResponse,
@@ -216,6 +265,9 @@ export const IpcResponse = z.union([
 	StopRecordResponse,
 	ChannelDetailsResponse,
 	DownloadVodResponse,
+	AddHarvestChannelResponse,
+	RemoveHarvestChannelResponse,
+	ListHarvestChannelsResponse,
 	IpcErrorResponse,
 ])
 export type IpcResponse = z.infer<typeof IpcResponse>
