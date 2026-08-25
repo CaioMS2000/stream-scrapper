@@ -18,8 +18,9 @@ import {
 	StopRecordingUseCase,
 } from './application/use-cases'
 import { config } from './config'
-import { resolveViaCdn } from './infrastructure/cdn-recovery'
+import { resolveViaCdn, seedKnownCdnHosts } from './infrastructure/cdn-recovery'
 import {
+	DrizzleCdnHostRepository,
 	DrizzleChannelRepository,
 	DrizzleDownloadRepository,
 	DrizzleRecordingRepository,
@@ -69,6 +70,10 @@ async function main() {
 	const streamRepository = new DrizzleStreamRepository({ drizzle: db })
 	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
 	const downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
+	const cdnHostRepository = new DrizzleCdnHostRepository({ drizzle: db })
+	// Idempotente — seguro de chamar em todo boot. Depois do seed inicial, o
+	// pool cresce organicamente (ver DownloadVodUseCase).
+	await seedKnownCdnHosts(cdnHostRepository)
 
 	// Serviços externos ────────────────────────────────────────────────────
 	const twitch = new TwitchClientImpl()
@@ -152,9 +157,14 @@ async function main() {
 		streamRepository,
 		downloadRepository,
 		channelRepository,
+		cdnHostRepository,
 		storage,
 		downloader: vodDownloader,
-		resolveCdn: resolveViaCdn,
+		// Pool de hosts vem da tabela `cdn_host` (harvesting orgânico, ver
+		// DownloadVodUseCase) — sem lista estática, ver
+		// infrastructure/cdn-recovery/resolver.ts.
+		resolveCdn: async params =>
+			resolveViaCdn(params, { hosts: await cdnHostRepository.listHosts() }),
 		resolveOfficial: params =>
 			resolveViaOfficial(params, { twitchClient: twitch }),
 	})

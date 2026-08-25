@@ -1,6 +1,5 @@
 import { parseSegments } from '../hls'
 import { computeCdnHash } from './hash'
-import { KNOWN_CDN_HOSTS } from './host-pool'
 
 type ResolveViaCdnParams = {
 	channelName: string
@@ -13,7 +12,11 @@ type ResolveViaCdnParams = {
 type FetchLike = (url: string) => Promise<Response>
 
 type ResolveViaCdnOptions = {
-	hosts?: readonly string[]
+	// Obrigatório de propósito — não há mais lista estática de fallback
+	// (host-pool.ts foi removido). A fonte de verdade é a tabela `cdn_host`
+	// (harvesting orgânico, ver DownloadVodUseCase); quem chama sempre
+	// busca a lista de lá antes (ver main.ts).
+	hosts: readonly string[]
 	fetchImpl?: FetchLike
 }
 
@@ -37,9 +40,9 @@ export type CdnResolution = {
 // design doc).
 export async function resolveViaCdn(
 	{ channelName, streamId, startedAt }: ResolveViaCdnParams,
-	options: ResolveViaCdnOptions = {}
+	options: ResolveViaCdnOptions
 ): Promise<CdnResolution | null> {
-	const hosts = options.hosts ?? KNOWN_CDN_HOSTS
+	const { hosts } = options
 	const fetchImpl = options.fetchImpl ?? fetch
 	const { hashable, urlhash } = computeCdnHash({
 		channelName,

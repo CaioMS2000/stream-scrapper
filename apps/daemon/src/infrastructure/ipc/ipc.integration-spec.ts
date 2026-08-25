@@ -42,6 +42,7 @@ import { FakeRecorder } from '../../test/recorder'
 import { FakeTwitchClient } from '../../test/twitch-client'
 import type { CdnResolution } from '../cdn-recovery'
 import {
+	DrizzleCdnHostRepository,
 	DrizzleChannelRepository,
 	DrizzleDownloadRepository,
 	DrizzleRecordingRepository,
@@ -102,6 +103,7 @@ describe('IPC integration', () => {
 	let streamRepository: DrizzleStreamRepository
 	let recordingRepository: DrizzleRecordingRepository
 	let downloadRepository: DrizzleDownloadRepository
+	let cdnHostRepository: DrizzleCdnHostRepository
 	let recorder: FakeRecorder
 	let vodDownloader: FakeVodDownloader
 
@@ -117,6 +119,7 @@ describe('IPC integration', () => {
 			drizzle: db,
 		})
 		downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
+		cdnHostRepository = new DrizzleCdnHostRepository({ drizzle: db })
 		const storage = new MediaStorage({ rootPath: tmpDir })
 		const streamMetaStorage = new StreamMetaStorage()
 		const twitch = new FakeTwitchClient(
@@ -176,6 +179,7 @@ describe('IPC integration', () => {
 			streamRepository,
 			downloadRepository,
 			channelRepository,
+			cdnHostRepository,
 			storage,
 			downloader: vodDownloader,
 			resolveCdn: async () => FAKE_CDN_RESOLUTION,

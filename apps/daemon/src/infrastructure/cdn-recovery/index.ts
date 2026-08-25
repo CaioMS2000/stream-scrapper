@@ -1,3 +1,3 @@
 export * from './hash'
-export * from './host-pool'
+export * from './known-hosts'
 export * from './resolver'

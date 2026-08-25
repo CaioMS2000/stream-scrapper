@@ -2,16 +2,18 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { CdnHostRepository } from '../../application/repositories'
 import type { CdnResolution } from '../../infrastructure/cdn-recovery'
-import { DrizzleDownloadRepository } from '../../infrastructure/database/repositories'
+import { seedKnownCdnHosts } from '../../infrastructure/cdn-recovery'
+import {
+	DrizzleCdnHostRepository,
+	DrizzleDownloadRepository,
+} from '../../infrastructure/database/repositories'
 import { MediaStorage } from '../../infrastructure/media-storage'
-import type {
-	OfficialVodResolution,
-	resolveViaOfficial,
-} from '../../infrastructure/official-vod'
+import type { OfficialVodResolution } from '../../infrastructure/official-vod'
 import { makeTestDb } from '../../test/db'
 import { FakeVodDownloader } from '../../test/downloader'
-import { DownloadVodUseCase } from './download-vod'
+import { DownloadVodUseCase, type ResolveOfficialFn } from './download-vod'
 
 const FOUND_RESOLUTION: CdnResolution = {
 	host: 'fake-host.cloudfront.net',
@@ -29,10 +31,15 @@ const FOUND_OFFICIAL_RESOLUTION: OfficialVodResolution = {
 function makeUseCase(options?: {
 	downloaderConfig?: ConstructorParameters<typeof FakeVodDownloader>[0]
 	resolveCdn?: () => Promise<CdnResolution | null>
-	resolveOfficial?: typeof resolveViaOfficial
+	resolveOfficial?: ResolveOfficialFn
+	cdnHostRepository?: CdnHostRepository
 }) {
 	const { db, streamRepository, channelRepository } = makeTestDb()
 	const downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
+	// Não cresce test/db.ts por acumulação (comentário do próprio arquivo) —
+	// repositório extra montado inline, reusando o `db` já migrado.
+	const cdnHostRepository =
+		options?.cdnHostRepository ?? new DrizzleCdnHostRepository({ drizzle: db })
 	const rootPath = mkdtempSync(join(tmpdir(), 'stream-scrapper-test-'))
 	const storage = new MediaStorage({ rootPath })
 	const downloader = new FakeVodDownloader(options?.downloaderConfig)
@@ -43,6 +50,7 @@ function makeUseCase(options?: {
 		streamRepository,
 		downloadRepository,
 		channelRepository,
+		cdnHostRepository,
 		storage,
 		downloader,
 		resolveCdn,
@@ -54,6 +62,7 @@ function makeUseCase(options?: {
 		streamRepository,
 		channelRepository,
 		downloadRepository,
+		cdnHostRepository,
 		storage,
 		downloader,
 	}
@@ -250,5 +259,72 @@ describe('DownloadVodUseCase', () => {
 		await useCase.execute({ streamId: baseStream.streamId })
 
 		expect(receivedParams).toEqual([{ vodId: 'vod123', qualityPref: '720p' }])
+	})
+
+	test('seedKnownCdnHosts popula a tabela com os hosts conhecidos', async () => {
+		const { cdnHostRepository } = makeUseCase()
+
+		await seedKnownCdnHosts(cdnHostRepository)
+		const hosts = await cdnHostRepository.listHosts()
+
+		expect(hosts.length).toBeGreaterThanOrEqual(5)
+		expect(hosts).toContain('d3fi1amfgojobc.cloudfront.net')
+	})
+
+	test('resolução via CDN → host é gravado na tabela cdn_host (harvesting)', async () => {
+		const { useCase, streamRepository, cdnHostRepository } = makeUseCase()
+		await streamRepository.createStream(baseStream)
+
+		await useCase.execute({ streamId: baseStream.streamId })
+
+		const hosts = await cdnHostRepository.listHosts()
+		expect(hosts).toContain(FOUND_RESOLUTION.host)
+	})
+
+	test('resolução via caminho oficial → host oficial também é gravado', async () => {
+		const { useCase, streamRepository, cdnHostRepository } = makeUseCase({
+			resolveOfficial: async () => FOUND_OFFICIAL_RESOLUTION,
+		})
+		await streamRepository.createStream(baseStream)
+		await streamRepository.updateVodLookup({
+			streamId: baseStream.streamId,
+			vodId: 'vod123',
+			vodLookupStatus: 'linked',
+		})
+
+		await useCase.execute({ streamId: baseStream.streamId })
+
+		const hosts = await cdnHostRepository.listHosts()
+		expect(hosts).toContain(FOUND_OFFICIAL_RESOLUTION.host)
+	})
+
+	test('host já existente → não duplica', async () => {
+		const { useCase, streamRepository, cdnHostRepository } = makeUseCase()
+		await cdnHostRepository.recordHost(FOUND_RESOLUTION.host)
+		const before = await cdnHostRepository.listHosts()
+		await streamRepository.createStream(baseStream)
+
+		await useCase.execute({ streamId: baseStream.streamId })
+
+		const after = await cdnHostRepository.listHosts()
+		expect(after.length).toBe(before.length)
+	})
+
+	test('falha ao gravar host não derruba o download (best-effort)', async () => {
+		const brokenCdnHostRepository: CdnHostRepository = {
+			listHosts: async () => [],
+			recordHost: async () => {
+				throw new Error('db indisponível')
+			},
+		}
+		const { useCase, streamRepository, downloader } = makeUseCase({
+			cdnHostRepository: brokenCdnHostRepository,
+		})
+		await streamRepository.createStream(baseStream)
+
+		const result = await useCase.execute({ streamId: baseStream.streamId })
+
+		expect(result.isSuccess()).toBe(true)
+		expect(downloader.downloadCalls).toHaveLength(1)
 	})
 })
