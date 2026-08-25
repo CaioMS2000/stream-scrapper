@@ -23,6 +23,7 @@ import {
 } from '@repo/ipc'
 import {
 	AddChannelUseCase,
+	AddHarvestChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	DownloadVodUseCase,
@@ -30,7 +31,9 @@ import {
 	ForceRecordUseCase,
 	ForceStopUseCase,
 	ListChannelsUseCase,
+	ListHarvestChannelsUseCase,
 	RemoveChannelUseCase,
+	RemoveHarvestChannelUseCase,
 	StartRecordingUseCase,
 	StopRecordingUseCase,
 } from '../../application/use-cases'
@@ -45,6 +48,7 @@ import {
 	DrizzleCdnHostRepository,
 	DrizzleChannelRepository,
 	DrizzleDownloadRepository,
+	DrizzleHarvestChannelRepository,
 	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from '../database/repositories'
@@ -104,6 +108,7 @@ describe('IPC integration', () => {
 	let recordingRepository: DrizzleRecordingRepository
 	let downloadRepository: DrizzleDownloadRepository
 	let cdnHostRepository: DrizzleCdnHostRepository
+	let harvestChannelRepository: DrizzleHarvestChannelRepository
 	let recorder: FakeRecorder
 	let vodDownloader: FakeVodDownloader
 
@@ -120,6 +125,9 @@ describe('IPC integration', () => {
 		})
 		downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
 		cdnHostRepository = new DrizzleCdnHostRepository({ drizzle: db })
+		harvestChannelRepository = new DrizzleHarvestChannelRepository({
+			drizzle: db,
+		})
 		const storage = new MediaStorage({ rootPath: tmpDir })
 		const streamMetaStorage = new StreamMetaStorage()
 		const twitch = new FakeTwitchClient(
@@ -185,6 +193,15 @@ describe('IPC integration', () => {
 			resolveCdn: async () => FAKE_CDN_RESOLUTION,
 			resolveOfficial: async () => null,
 		})
+		const addHarvestChannel = new AddHarvestChannelUseCase({
+			harvestChannelRepository,
+		})
+		const removeHarvestChannel = new RemoveHarvestChannelUseCase({
+			harvestChannelRepository,
+		})
+		const listHarvestChannels = new ListHarvestChannelsUseCase({
+			harvestChannelRepository,
+		})
 
 		server = new IpcServer({
 			deps: {
@@ -197,6 +214,9 @@ describe('IPC integration', () => {
 				stopRecord,
 				channelDetails,
 				downloadVod,
+				addHarvestChannel,
+				removeHarvestChannel,
+				listHarvestChannels,
 			},
 			socketPath,
 		})
@@ -533,5 +553,79 @@ describe('IPC integration', () => {
 
 		const download = await downloadRepository.findDownloadByStreamId('sid-vod')
 		expect(download?.status).toBe('downloading')
+	})
+
+	test('add-harvest-channel → sucesso + canal listado', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'add-harvest-channel' })
+		expect(await harvestChannelRepository.listChannels()).toEqual(['lexi'])
+	})
+
+	test('add-harvest-channel repetido → idempotente, sem erro nem duplicata', async () => {
+		await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'lexi',
+		})
+		const res = await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'add-harvest-channel' })
+		expect(await harvestChannelRepository.listChannels()).toEqual(['lexi'])
+	})
+
+	test('remove-harvest-channel num canal inexistente → envelope de erro', async () => {
+		const res = await sendCommand(socketPath, {
+			cmd: 'remove-harvest-channel',
+			channelName: 'ghost',
+		})
+		expect(res.ok).toBe(false)
+		if (!res.ok) {
+			expect(res.error).toMatch(/not found/i)
+		}
+	})
+
+	test('remove-harvest-channel existente → sucesso + row removida', async () => {
+		await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'lexi',
+		})
+
+		const res = await sendCommand(socketPath, {
+			cmd: 'remove-harvest-channel',
+			channelName: 'lexi',
+		})
+		expect(res).toEqual({ ok: true, cmd: 'remove-harvest-channel' })
+		expect(await harvestChannelRepository.listChannels()).toEqual([])
+	})
+
+	test('list-harvest-channels sem canais cadastrados → lista vazia', async () => {
+		const res = await sendCommand(socketPath, { cmd: 'list-harvest-channels' })
+		expect(res).toEqual({
+			ok: true,
+			cmd: 'list-harvest-channels',
+			channels: [],
+		})
+	})
+
+	test('list-harvest-channels com canais → lista ordenada alfabeticamente', async () => {
+		await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'zeta',
+		})
+		await sendCommand(socketPath, {
+			cmd: 'add-harvest-channel',
+			channelName: 'lexi',
+		})
+
+		const res = await sendCommand(socketPath, { cmd: 'list-harvest-channels' })
+		expect(res).toEqual({
+			ok: true,
+			cmd: 'list-harvest-channels',
+			channels: ['lexi', 'zeta'],
+		})
 	})
 })

@@ -1,11 +1,14 @@
-import type { ChannelRepository } from '@/application/repositories'
+import type {
+	ChannelRepository,
+	HarvestChannelRepository,
+} from '@/application/repositories'
 import type { HarvestCdnHostsUseCase } from '@/application/use-cases'
 import type { Optional } from '../../@shared/types'
-import { HARVEST_CHANNEL_NAMES } from './channel-list'
 
 export type CdnHostHarvesterProps = {
 	intervalMs: number
 	channelRepository: ChannelRepository
+	harvestChannelRepository: HarvestChannelRepository
 	harvestCdnHosts: HarvestCdnHostsUseCase
 }
 
@@ -23,9 +26,10 @@ function makeDefaultProps() {
 
 // Harvesting ATIVO de hosts de CDN (ver HarvestCdnHostsUseCase) — roda
 // contra dois grupos de canais: os monitorados (ChannelRepository) e uma
-// lista manual de terceiros (HARVEST_CHANNEL_NAMES). Mesmo mecanismo de
-// agendamento do VodLinker/ChannelMonitor — não existe scheduler
-// reaproveitável no código hoje, então replica o padrão inline.
+// lista de terceiros gerenciada via CLI (HarvestChannelRepository, ver
+// add/remove/list-harvest-channels). Mesmo mecanismo de agendamento do
+// VodLinker/ChannelMonitor — não existe scheduler reaproveitável no código
+// hoje, então replica o padrão inline.
 export class CdnHostHarvester {
 	private readonly props: CdnHostHarvesterProps
 	private timer: Timer | null = null
@@ -54,10 +58,11 @@ export class CdnHostHarvester {
 
 	private async tick() {
 		const monitored = await this.props.channelRepository.getAllChannels()
+		const harvestList = await this.props.harvestChannelRepository.listChannels()
 		// Set deduplica caso um canal monitorado também esteja na lista manual.
 		const channelNames = new Set([
 			...monitored.map(c => c.username),
-			...HARVEST_CHANNEL_NAMES,
+			...harvestList,
 		])
 
 		for (const channelName of channelNames) {

@@ -1,6 +1,7 @@
 import type { IpcRequest, IpcResponse } from '@repo/ipc'
 import type {
 	AddChannelUseCase,
+	AddHarvestChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	DownloadVodUseCase,
@@ -8,7 +9,9 @@ import type {
 	ForceRecordUseCase,
 	ForceStopUseCase,
 	ListChannelsUseCase,
+	ListHarvestChannelsUseCase,
 	RemoveChannelUseCase,
+	RemoveHarvestChannelUseCase,
 } from '../../application/use-cases'
 
 // Dispatch tipada dos comandos IPC. O Record `handlers` substitui um switch:
@@ -31,6 +34,9 @@ export type IpcRouterProps = {
 	stopRecord: ForceStopUseCase
 	channelDetails: ChannelDetailsUseCase
 	downloadVod: DownloadVodUseCase
+	addHarvestChannel: AddHarvestChannelUseCase
+	removeHarvestChannel: RemoveHarvestChannelUseCase
+	listHarvestChannels: ListHarvestChannelsUseCase
 }
 
 export class IpcRouter {
@@ -146,6 +152,48 @@ export class IpcRouter {
 				}
 
 				return { ok: true, cmd: 'download-vod' }
+			},
+
+			'add-harvest-channel': async req => {
+				const result = await this.props.addHarvestChannel.execute({
+					channelName: req.channelName,
+				})
+
+				// L = never (não há caminho de falha hoje) — mesmo caso de
+				// list-channels (ver handler acima na classe).
+				if (result.isFailure()) {
+					return { ok: false, error: String(result.value) }
+				}
+
+				return { ok: true, cmd: 'add-harvest-channel' }
+			},
+
+			'remove-harvest-channel': async req => {
+				const result = await this.props.removeHarvestChannel.execute({
+					channelName: req.channelName,
+				})
+
+				if (result.isFailure()) {
+					return { ok: false, error: result.value.message }
+				}
+
+				return { ok: true, cmd: 'remove-harvest-channel' }
+			},
+
+			'list-harvest-channels': async () => {
+				const result = await this.props.listHarvestChannels.execute()
+
+				// L = never (não há caminho de falha hoje) — mesmo caso de
+				// list-channels, ver comentário lá.
+				if (result.isFailure()) {
+					return { ok: false, error: String(result.value) }
+				}
+
+				return {
+					ok: true,
+					cmd: 'list-harvest-channels',
+					channels: result.value,
+				}
 			},
 		}
 	}

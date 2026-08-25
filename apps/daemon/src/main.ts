@@ -3,6 +3,7 @@ import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
 import {
 	AddChannelUseCase,
+	AddHarvestChannelUseCase,
 	ChannelDetailsUseCase,
 	DisableAutoRecordingUseCase,
 	DownloadVodUseCase,
@@ -14,7 +15,9 @@ import {
 	HarvestCdnHostsUseCase,
 	LinkVodUseCase,
 	ListChannelsUseCase,
+	ListHarvestChannelsUseCase,
 	RemoveChannelUseCase,
+	RemoveHarvestChannelUseCase,
 	StartRecordingUseCase,
 	StopRecordingUseCase,
 } from './application/use-cases'
@@ -25,6 +28,7 @@ import {
 	DrizzleCdnHostRepository,
 	DrizzleChannelRepository,
 	DrizzleDownloadRepository,
+	DrizzleHarvestChannelRepository,
 	DrizzleRecordingRepository,
 	DrizzleStreamRepository,
 } from './infrastructure/database/repositories'
@@ -76,6 +80,11 @@ async function main() {
 	// Idempotente — seguro de chamar em todo boot. Depois do seed inicial, o
 	// pool cresce organicamente (ver DownloadVodUseCase).
 	await seedKnownCdnHosts(cdnHostRepository)
+	// Sem seed, ao contrário de cdnHostRepository acima — nasce vazia,
+	// povoada só via add-harvest-channel (CLI).
+	const harvestChannelRepository = new DrizzleHarvestChannelRepository({
+		drizzle: db,
+	})
 
 	// Serviços externos ────────────────────────────────────────────────────
 	const twitch = new TwitchClientImpl()
@@ -186,6 +195,17 @@ async function main() {
 		cdnHostRepository,
 		resolveOfficial,
 	})
+	// Gestão da lista de terceiros usada pelo harvesting ativo acima — ver
+	// infrastructure/cdn-host-harvester.
+	const addHarvestChannel = new AddHarvestChannelUseCase({
+		harvestChannelRepository,
+	})
+	const removeHarvestChannel = new RemoveHarvestChannelUseCase({
+		harvestChannelRepository,
+	})
+	const listHarvestChannels = new ListHarvestChannelsUseCase({
+		harvestChannelRepository,
+	})
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -205,6 +225,7 @@ async function main() {
 	// lista manual de terceiros (ver infrastructure/cdn-host-harvester).
 	const cdnHostHarvester = new CdnHostHarvester({
 		channelRepository,
+		harvestChannelRepository,
 		harvestCdnHosts,
 	})
 
@@ -291,6 +312,9 @@ async function main() {
 			stopRecord,
 			channelDetails,
 			downloadVod,
+			addHarvestChannel,
+			removeHarvestChannel,
+			listHarvestChannels,
 		},
 		socketPath,
 	})
