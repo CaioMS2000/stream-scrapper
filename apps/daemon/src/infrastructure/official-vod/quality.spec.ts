@@ -48,4 +48,22 @@ describe('selectVariant', () => {
 	test('lista vazia → null', () => {
 		expect(selectVariant([], 'source')).toBeNull()
 	})
+
+	describe('estratégia "best"', () => {
+		test('sem a qualidade pedida → pega a melhor disponível, mesmo que seja maior', () => {
+			// pediu 360p, mas com strategy "best" ignora a distância e pega source
+			const variants = [chunked, p720, p480]
+			expect(selectVariant(variants, '360p', 'best')).toBe(chunked)
+		})
+
+		test('match exato ainda tem prioridade sobre a estratégia', () => {
+			const variants = [chunked, p720]
+			expect(selectVariant(variants, '720p', 'best')).toBe(p720)
+		})
+
+		test('160p e audio_only continuam ignorados', () => {
+			const variants = [p160, audioOnly]
+			expect(selectVariant(variants, 'source', 'best')).toBeNull()
+		})
+	})
 })

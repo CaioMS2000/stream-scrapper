@@ -15,12 +15,21 @@ function qualityOf(variant: Variant): VideoQuality | null {
 		: null
 }
 
-// Match exato primeiro; senão a próxima qualidade MENOR disponível
-// (fallback econômico); senão a próxima MAIOR. Sem nenhuma variante
-// reconhecida (só 160p/audio_only, por exemplo) → null.
+// 'closest' (default): fallback econômico — desce pra próxima qualidade
+// MENOR disponível antes de subir. Existe pra respeitar a intenção de
+// quem configurou qualityPref (ex.: escolheu 480p pra economizar espaço,
+// não deveria virar 1080p de surpresa).
+// 'best': ignora a distância até o qualityPref pedido, sempre pega a
+// melhor qualidade disponível no VOD.
+export const QualityFallbackStrategy = ['closest', 'best'] as const
+export type QualityFallbackStrategy = (typeof QualityFallbackStrategy)[number]
+
+// Match exato primeiro; senão aplica a estratégia de fallback. Sem
+// nenhuma variante reconhecida (só 160p/audio_only, por exemplo) → null.
 export function selectVariant(
 	variants: Variant[],
-	qualityPref: VideoQuality
+	qualityPref: VideoQuality,
+	strategy: QualityFallbackStrategy = 'closest'
 ): Variant | null {
 	const byQuality = new Map<VideoQuality, Variant>()
 	for (const variant of variants) {
@@ -30,6 +39,14 @@ export function selectVariant(
 
 	const exact = byQuality.get(qualityPref)
 	if (exact) return exact
+
+	if (strategy === 'best') {
+		for (const quality of VideoQuality) {
+			const candidate = byQuality.get(quality)
+			if (candidate) return candidate
+		}
+		return null
+	}
 
 	const prefIndex = VideoQuality.indexOf(qualityPref)
 
