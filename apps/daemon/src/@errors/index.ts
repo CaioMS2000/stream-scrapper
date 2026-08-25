@@ -1,3 +1,4 @@
+export * from './cdn-host-harvest-failed'
 export * from './channel-already-registered'
 export * from './channel-not-found'
 export * from './channel-not-live'
