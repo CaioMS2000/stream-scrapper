@@ -1,5 +1,6 @@
 export * from './cdn-host-repository'
 export * from './channel-repository'
 export * from './download-repository'
+export * from './harvest-channel-repository'
 export * from './recording-repository'
 export * from './stream-repository'
