@@ -1,11 +1,16 @@
 import type z from 'zod'
-import { ChannelNotFoundError } from '../../@errors'
+import {
+	ChannelNotFoundError,
+	VodPlaybackTokenNotFoundError,
+} from '../../@errors'
 import { failure, type Result, success } from '../../result'
 import { gqlRequest } from './http/gql'
 import {
 	GetChannelResponse,
 	GetChannelsResponse,
 	GetChannelVideosResponse,
+	GetVodPlaybackAccessTokenResponse,
+	VodPlaybackTokenValue,
 } from './http/schemas'
 
 type ChannelFromResponse = NonNullable<
@@ -15,6 +20,12 @@ type ChannelFromResponse = NonNullable<
 type ChannelVideo = NonNullable<
 	z.infer<typeof GetChannelVideosResponse>['data']['user']
 >['videos']['edges'][number]['node']
+
+export type VodPlaybackToken = {
+	value: string
+	signature: string
+	forbidden: boolean
+}
 
 export interface TwitchClient {
 	getChannel(
@@ -41,6 +52,12 @@ export interface TwitchClient {
 		login: string,
 		first?: number
 	): Promise<Result<ChannelNotFoundError, ChannelVideo[]>>
+	// Token de reprodução do VOD oficial — buscado fresco a cada uso, nunca
+	// armazenado (mesma premissa da ADR 004, aplicada ao VOD). Ver
+	// docs/design/002-download-de-vods.md, seção C.
+	getVodPlaybackAccessToken(
+		vodId: string
+	): Promise<Result<VodPlaybackTokenNotFoundError, VodPlaybackToken>>
 }
 
 export class TwitchClientImpl implements TwitchClient {
@@ -115,5 +132,31 @@ export class TwitchClientImpl implements TwitchClient {
 		}
 
 		return success(data.user.videos.edges.map(edge => edge.node))
+	}
+
+	async getVodPlaybackAccessToken(vodId: string) {
+		const { data } = await gqlRequest({
+			operation: {
+				query:
+					'query($vodID: ID!) { videoPlaybackAccessToken(id: $vodID, params: {platform: "web", playerBackend: "mediaplayer", playerType: "site"}) { value signature } }',
+				variables: { vodID: vodId },
+			},
+			schema: GetVodPlaybackAccessTokenResponse,
+		})
+
+		if (data.videoPlaybackAccessToken === null) {
+			return failure(new VodPlaybackTokenNotFoundError(vodId))
+		}
+
+		const { value, signature } = data.videoPlaybackAccessToken
+		// `value` é uma string JSON aninhada (confirmado em
+		// apps/daemon/spikes/FINDINGS.md, seção 2) — segundo parse necessário.
+		const parsed = VodPlaybackTokenValue.parse(JSON.parse(value))
+
+		return success({
+			value,
+			signature,
+			forbidden: parsed.authorization.forbidden,
+		})
 	}
 }

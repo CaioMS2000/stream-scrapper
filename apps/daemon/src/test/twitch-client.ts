@@ -14,6 +14,10 @@ type GetChannelVideosReturn = Awaited<
 	ReturnType<TwitchClientImpl['getChannelVideos']>
 >
 
+type GetVodPlaybackAccessTokenReturn = Awaited<
+	ReturnType<TwitchClientImpl['getVodPlaybackAccessToken']>
+>
+
 export class FakeTwitchClient implements TwitchClient {
 	constructor(
 		private response: GetChannelReturn,
@@ -21,7 +25,12 @@ export class FakeTwitchClient implements TwitchClient {
 			users: [],
 			notFoundUsers: [],
 		}),
-		private videosResponse: GetChannelVideosReturn = success([])
+		private videosResponse: GetChannelVideosReturn = success([]),
+		private playbackTokenResponse: GetVodPlaybackAccessTokenReturn = success({
+			value: '',
+			signature: '',
+			forbidden: false,
+		})
 	) {}
 	async getChannel(): Promise<GetChannelReturn> {
 		return this.response
@@ -31,5 +40,8 @@ export class FakeTwitchClient implements TwitchClient {
 	}
 	async getChannelVideos(): Promise<GetChannelVideosReturn> {
 		return this.videosResponse
+	}
+	async getVodPlaybackAccessToken(): Promise<GetVodPlaybackAccessTokenReturn> {
+		return this.playbackTokenResponse
 	}
 }
