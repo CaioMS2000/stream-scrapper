@@ -1,3 +1,4 @@
+export * from './cdn-host-repository'
 export * from './channel-repository'
 export * from './download-repository'
 export * from './recording-repository'

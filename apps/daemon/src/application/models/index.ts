@@ -1,3 +1,4 @@
+export * from './cdn-host'
 export * from './channel'
 export * from './download'
 export * from './recording'
