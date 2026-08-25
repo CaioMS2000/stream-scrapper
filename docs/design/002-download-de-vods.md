@@ -1,36 +1,51 @@
 # Design: download de VODs (recuperação de streams gravadas)
 
-**Status:** parcialmente implementado (2026-08-24) — ver "Fatiado — v1
-implementado" abaixo. Este documento captura o raciocínio de desenho
-discutido antes/durante a implementação.
+**Status:** implementado (2026-08-25) — ver "Fatiado — v1 implementado"
+abaixo. Este documento captura o raciocínio de desenho discutido
+antes/durante a implementação.
 
 ## Fatiado — v1 implementado
 
-O usuário decidiu implementar **só o caminho B** primeiro (achar +
-baixar + persistir via CDN), deixando A e C pra depois. Registrado aqui
-explicitamente pra não virar esquecimento com o tempo:
+Implementação faseada em 4 issues do Linear (CAI-74 a CAI-77), construída
+em cima de uma primeira fatia (B+D+E) que veio antes delas. Todas as
+partes descritas neste documento (A, B, C, D, E e o harvesting de hosts)
+estão implementadas:
 
-- **Implementado:** B (recuperação via CDN) + D (download de segments) + E
-  (persistência) — ponta a ponta, produz um `.ts` real no disco a partir de
-  só `channelName`+`streamId`+`startedAt` já persistidos.
-- **Não implementado ainda:** A (job de descoberta oficial via GQL,
-  `vodLookupStatus`) e C (auth/playlist oficial, com suporte a
-  `qualityPref`). `download-vod` hoje só tenta o caminho B — não há
-  fallback pro caminho oficial porque o caminho oficial não existe ainda.
-- **Harvesting automático de hosts não virou código de produção nesta
-  fatia.** O pool de hosts em `infrastructure/cdn-recovery/host-pool.ts` é
-  uma lista **estática**, seedada com os hosts já confirmados
-  empiricamente. Crescer isso automaticamente depende de A/C existirem
-  (precisa de algum `vodId` resolvido organicamente pra alimentar um
-  harvester) — até lá, `apps/daemon/spikes/04-cdn-host-harvest.sh` continua
-  sendo a ferramenta manual pra descobrir hosts novos e adicioná-los à
-  lista estática à mão.
-- **Limitação aceita:** só qualidade "chunked" (source) é alcançável via
-  CDN — não existe master playlist com variantes nesse caminho, então
-  `channel.qualityPref` não é respeitado nesta fatia.
-- Plano de implementação detalhado desta fatia:
-  `/home/caioms/.claude/plans/cuddly-twirling-eich.md` (local, fora do
-  repo — não linkar como referência permanente).
+- **A (descoberta oficial)** — `LinkVodUseCase` + `VodLinker`, job
+  periódico que casa `videos()` do GQL com `stream.startedAt` por
+  proximidade (não por ID direto — ver seção A) e popula `stream.vodId` +
+  `vodLookupStatus`.
+- **B (recuperação via CDN)** — `resolveViaCdn`
+  (`infrastructure/cdn-recovery`), reconstrução determinística do path via
+  hash SHA1, probing contra um pool de hosts.
+- **C (auth/playlist oficial)** — `resolveViaOfficial`
+  (`infrastructure/official-vod`): `videoPlaybackAccessToken` via GQL +
+  usher + seleção de variante por `channel.qualityPref`, com fallback pra
+  próxima qualidade disponível.
+- **Orquestração (A/C → B)** — `DownloadVodUseCase` tenta o caminho
+  oficial primeiro quando `stream.vodId` já existe (melhor qualidade,
+  não contorna controle de acesso); cai pro CDN só se o oficial não
+  resolver.
+- **D (execução do download)** — `HttpVodDownloader`
+  (`infrastructure/downloader`), pool de segments, retry, eventos no bus.
+- **E (persistência)** — `DrizzleDownloadRepository`, índice único
+  parcial pra idempotência sob concorrência.
+- **Harvesting de hosts** — tabela `cdn_host` (Drizzle), seedada no boot
+  do daemon via `seedKnownCdnHosts` (`infrastructure/cdn-recovery/known-hosts.ts`,
+  os mesmos hosts já confirmados empiricamente, idempotente — seguro
+  chamar em todo boot). Crescimento é **orgânico**: toda resolução
+  bem-sucedida (via B ou C) grava o host que funcionou (`DownloadVodUseCase`,
+  best-effort — falha ao gravar não derruba o download). Substituiu a
+  antiga lista estática em `infrastructure/cdn-recovery/host-pool.ts`
+  (removida).
+  **Nota de crescimento futuro:** esse mecanismo só cresce com o *uso* do
+  próprio daemon — canais que ele nunca tenta baixar não contribuem host
+  nenhum. Se um dia isso se mostrar insuficiente (pool pequeno demais,
+  taxa de acerto do fallback B caindo), o próximo passo natural é
+  harvesting **ativo**: um job que sai testando VODs de canais quaisquer
+  (mesma técnica do spike `apps/daemon/spikes/04-cdn-host-harvest.sh`) pra
+  engordar o pool além do que o uso orgânico descobre sozinho. Não
+  implementado — só registrado aqui como extensão possível.
 
 ## Problema
 
@@ -329,6 +344,11 @@ url      = f"https://{cdn_host}/{urlhash}_{hashable}/chunked/index-dvr.m3u8"
    canal da VOD-alvo) e testar contra ele — ao contrário do que uma versão
    anterior deste documento propunha (priorizar host do mesmo canal), isso
    não se mostrou necessário no teste real.
+   **Mitigação implementada (2026-08-25):** deixou de ser manual — a
+   tabela `cdn_host` cresce organicamente a cada resolução bem-sucedida
+   (ver "Fatiado — v1 implementado"). Continua sendo só uma versão
+   passiva do harvesting; a extensão ativa (probing de canais quaisquer)
+   segue como possibilidade futura registrada, não implementada.
 
 ## Plano
 
