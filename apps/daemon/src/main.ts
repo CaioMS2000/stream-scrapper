@@ -11,6 +11,7 @@ import {
 	FinalizeRecordingUseCase,
 	ForceRecordUseCase,
 	ForceStopUseCase,
+	HarvestCdnHostsUseCase,
 	LinkVodUseCase,
 	ListChannelsUseCase,
 	RemoveChannelUseCase,
@@ -18,6 +19,7 @@ import {
 	StopRecordingUseCase,
 } from './application/use-cases'
 import { config } from './config'
+import { CdnHostHarvester } from './infrastructure/cdn-host-harvester'
 import { resolveViaCdn, seedKnownCdnHosts } from './infrastructure/cdn-recovery'
 import {
 	DrizzleCdnHostRepository,
@@ -150,6 +152,12 @@ async function main() {
 		streamRepository,
 		recordingRepository,
 	})
+	// Reaproveitada por DownloadVodUseCase e HarvestCdnHostsUseCase — os dois
+	// só precisam da mesma resolução oficial (C), com a mesma instância de
+	// `twitch` já criada acima.
+	const resolveOfficial = (params: Parameters<typeof resolveViaOfficial>[0]) =>
+		resolveViaOfficial(params, { twitchClient: twitch })
+
 	// Tenta o caminho oficial (C) primeiro quando a stream já tem `vodId`,
 	// cai pro CDN (B) só se o oficial não resolver — ver
 	// docs/design/002-download-de-vods.md e DownloadVodUseCase.
@@ -165,13 +173,19 @@ async function main() {
 		// infrastructure/cdn-recovery/resolver.ts.
 		resolveCdn: async params =>
 			resolveViaCdn(params, { hosts: await cdnHostRepository.listHosts() }),
-		resolveOfficial: params =>
-			resolveViaOfficial(params, { twitchClient: twitch }),
+		resolveOfficial,
 	})
 	const finalizeDownload = new FinalizeDownloadUseCase({ downloadRepository })
 	// Caminho A: descoberta oficial de VOD via GQL — ver
 	// docs/design/002-download-de-vods.md, seção A.
 	const linkVod = new LinkVodUseCase({ streamRepository, twitchClient: twitch })
+	// Harvesting ATIVO de hosts (desacoplado de um download real) — ver
+	// infrastructure/cdn-host-harvester.
+	const harvestCdnHosts = new HarvestCdnHostsUseCase({
+		twitchClient: twitch,
+		cdnHostRepository,
+		resolveOfficial,
+	})
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -186,6 +200,13 @@ async function main() {
 	// Job periódico que descobre o vodId oficial de streams pendentes —
 	// cadência bem mais lenta que o Monitor (default 10min, ver vod-linker.ts).
 	const vodLinker = new VodLinker({ streamRepository, linkVod })
+
+	// Job periódico de harvesting ativo de hosts — canais monitorados +
+	// lista manual de terceiros (ver infrastructure/cdn-host-harvester).
+	const cdnHostHarvester = new CdnHostHarvester({
+		channelRepository,
+		harvestCdnHosts,
+	})
 
 	// ═════════════════════════════════════════════════════════════════════
 	// A PONTE Monitor → use cases (via bus)
@@ -254,6 +275,7 @@ async function main() {
 
 	monitor.startMonitoring()
 	vodLinker.start()
+	cdnHostHarvester.start()
 
 	// Camada de IPC: escuta o socket e traduz comandos do CLI em chamadas
 	// aos use cases. Cada use case ainda é agnóstico de quem chamou.
@@ -281,6 +303,7 @@ async function main() {
 			console.log(`\nreceived ${signal}, shutting down...`)
 			monitor.stop()
 			vodLinker.stop()
+			cdnHostHarvester.stop()
 			// Para todos os streamlink filhos ANTES do IPC — evita deixar
 			// child process órfão se o kernel bater no daemon logo depois.
 			await recorder.stopAll()
