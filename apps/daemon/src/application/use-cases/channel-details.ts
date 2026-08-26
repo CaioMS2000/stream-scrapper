@@ -59,6 +59,19 @@ export class ChannelDetailsUseCase {
 		const streams =
 			await this.props.streamRepository.listStreamsByChannel(channelName)
 
+		type StreamsWithRecording = {
+			streamId: string
+			title: string
+			startedAt: Date
+			category: string | null
+			durationSeconds: number | null
+			recording: {
+				status: 'failed' | 'finished' | 'recording'
+				quality: 'source' | '1080p' | '720p' | '480p' | '360p'
+				bytes: number | null
+				endedAt: Date | null
+			} | null
+		}
 		const streamsWithRecording = await Promise.all(
 			streams.map(async stream => {
 				const recording =

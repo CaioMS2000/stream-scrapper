@@ -1,5 +1,6 @@
 import { ChannelDetailsResponse, resolveSocketPath } from '@repo/ipc'
 import type { Command } from 'commander'
+import { dayjs } from '@/config/date-and-time'
 import { IpcClient } from '../client'
 
 export function registerChannelDetails(program: Command) {
@@ -41,9 +42,11 @@ export function registerChannelDetails(program: Command) {
 							const marker = stream.recording
 								? `[gravado: ${stream.recording.status}]`
 								: '[sem gravação]'
+							const formatedDate = dayjs(stream.startedAt).format('DD/MM/YYYY')
 							console.log(
-								`${stream.startedAt.toISOString()}  "${stream.title}"  ${marker}`
+								`${formatedDate} - "${stream.title}" - ${stream.streamId}`
 							)
+							console.log(`${marker}\n`)
 						}
 					}
 				}

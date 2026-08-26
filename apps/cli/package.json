@@ -19,6 +19,7 @@
   "dependencies": {
     "@repo/ipc": "*",
     "commander": "^15.0.0",
+    "dayjs": "^1.11.23",
     "zod": "^4.4.3"
   }
 }
