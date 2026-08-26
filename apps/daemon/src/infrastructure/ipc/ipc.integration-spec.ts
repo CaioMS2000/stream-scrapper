@@ -181,6 +181,7 @@ describe('IPC integration', () => {
 			channelRepository,
 			streamRepository,
 			recordingRepository,
+			downloadRepository,
 		})
 		vodDownloader = new FakeVodDownloader()
 		const downloadVod = new DownloadVodUseCase({

@@ -161,6 +161,7 @@ async function main() {
 		channelRepository,
 		streamRepository,
 		recordingRepository,
+		downloadRepository,
 	})
 	// Reaproveitada por DownloadVodUseCase e HarvestCdnHostsUseCase — os dois
 	// só precisam da mesma resolução oficial (C), com a mesma instância de

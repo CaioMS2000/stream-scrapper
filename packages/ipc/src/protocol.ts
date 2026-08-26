@@ -184,12 +184,13 @@ export const StopRecordResponse = z.object({
 })
 export type StopRecordResponse = z.infer<typeof StopRecordResponse>
 
-// Duplica os literais de VideoQuality/RecordingStatus (definidos em
-// apps/daemon/src/application/models/types.ts) — packages/ipc não pode
-// importar de apps/daemon (a dependência vai sempre no sentido oposto),
-// mesmo trade-off já aceito no resto do protocolo.
+// Duplica os literais de VideoQuality/RecordingStatus/DownloadStatus
+// (definidos em apps/daemon/src/application/models/types.ts) — packages/ipc
+// não pode importar de apps/daemon (a dependência vai sempre no sentido
+// oposto), mesmo trade-off já aceito no resto do protocolo.
 const videoQuality = z.enum(['source', '1080p', '720p', '480p', '360p'])
 const recordingStatus = z.enum(['recording', 'finished', 'failed'])
+const downloadStatus = z.enum(['queued', 'downloading', 'completed', 'failed'])
 
 export const ChannelDetailsResponse = z.object({
 	ok: z.literal(true),
@@ -215,6 +216,13 @@ export const ChannelDetailsResponse = z.object({
 					status: recordingStatus,
 					quality: videoQuality,
 					bytes: z.number().nullable(),
+					endedAt: z.coerce.date().nullable(),
+				})
+				.nullable(),
+			download: z
+				.object({
+					status: downloadStatus,
+					progress: z.number().nullable(),
 					endedAt: z.coerce.date().nullable(),
 				})
 				.nullable(),

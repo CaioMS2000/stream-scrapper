@@ -1,18 +1,29 @@
 import { describe, expect, test } from 'bun:test'
 import { ChannelNotFoundError } from '../../@errors'
-import { DrizzleRecordingRepository } from '../../infrastructure/database/repositories'
+import {
+	DrizzleDownloadRepository,
+	DrizzleRecordingRepository,
+} from '../../infrastructure/database/repositories'
 import { makeTestDb } from '../../test/db'
 import { ChannelDetailsUseCase } from './channel-details'
 
 function makeUseCase() {
 	const { db, channelRepository, streamRepository } = makeTestDb()
 	const recordingRepository = new DrizzleRecordingRepository({ drizzle: db })
+	const downloadRepository = new DrizzleDownloadRepository({ drizzle: db })
 	const useCase = new ChannelDetailsUseCase({
 		channelRepository,
 		streamRepository,
 		recordingRepository,
+		downloadRepository,
 	})
-	return { useCase, channelRepository, streamRepository, recordingRepository }
+	return {
+		useCase,
+		channelRepository,
+		streamRepository,
+		recordingRepository,
+		downloadRepository,
+	}
 }
 
 describe('ChannelDetailsUseCase', () => {
@@ -83,8 +94,37 @@ describe('ChannelDetailsUseCase', () => {
 		expect(first?.streamId).toBe('new-stream')
 		expect(first?.recording?.status).toBe('finished')
 		expect(first?.recording?.bytes).toBe(123456)
+		expect(first?.download).toBeNull()
 
 		expect(second?.streamId).toBe('old-stream')
 		expect(second?.recording).toBeNull()
+		expect(second?.download).toBeNull()
+	})
+
+	test('stream recuperada via download de VOD, sem gravação ao vivo → marcador de download', async () => {
+		const { useCase, channelRepository, streamRepository, downloadRepository } =
+			makeUseCase()
+		await channelRepository.addChannel('lexi', { name: 'Lexi' })
+
+		await streamRepository.findOrCreateStream({
+			streamId: 'recovered-stream',
+			channelName: 'lexi',
+			title: 'live recuperada via CDN',
+			startedAt: new Date('2026-08-01T10:00:00Z'),
+		})
+		await downloadRepository.createDownload({
+			streamId: 'recovered-stream',
+			status: 'completed',
+			storagePath: '/data/lexi/2026-08-01/live-recuperada(recovered-stream)',
+		})
+
+		const result = await useCase.execute({ channelName: 'lexi' })
+
+		expect(result.isSuccess()).toBe(true)
+		if (!result.isSuccess()) return
+
+		const [stream] = result.value.streams
+		expect(stream?.recording).toBeNull()
+		expect(stream?.download?.status).toBe('completed')
 	})
 })

@@ -1,7 +1,12 @@
 import { ChannelNotFoundError } from '@/@errors'
-import type { RecordingStatus, VideoQuality } from '@/application/models/types'
+import type {
+	DownloadStatus,
+	RecordingStatus,
+	VideoQuality,
+} from '@/application/models/types'
 import type {
 	ChannelRepository,
+	DownloadRepository,
 	RecordingRepository,
 	StreamRepository,
 } from '@/application/repositories'
@@ -11,6 +16,7 @@ type UseCaseProps = {
 	channelRepository: ChannelRepository
 	streamRepository: StreamRepository
 	recordingRepository: RecordingRepository
+	downloadRepository: DownloadRepository
 }
 
 type UseCaseParams = {
@@ -24,6 +30,12 @@ type StreamRecordingInfo = {
 	endedAt: Date | null
 }
 
+type StreamDownloadInfo = {
+	status: DownloadStatus
+	progress: number | null
+	endedAt: Date | null
+}
+
 type StreamWithRecording = {
 	streamId: string
 	title: string
@@ -31,6 +43,7 @@ type StreamWithRecording = {
 	category: string | null
 	durationSeconds: number | null
 	recording: StreamRecordingInfo | null
+	download: StreamDownloadInfo | null
 }
 
 type ChannelDetails = {
@@ -59,25 +72,14 @@ export class ChannelDetailsUseCase {
 		const streams =
 			await this.props.streamRepository.listStreamsByChannel(channelName)
 
-		type StreamsWithRecording = {
-			streamId: string
-			title: string
-			startedAt: Date
-			category: string | null
-			durationSeconds: number | null
-			recording: {
-				status: 'failed' | 'finished' | 'recording'
-				quality: 'source' | '1080p' | '720p' | '480p' | '360p'
-				bytes: number | null
-				endedAt: Date | null
-			} | null
-		}
-		const streamsWithRecording = await Promise.all(
+		const streamsWithRecording: StreamWithRecording[] = await Promise.all(
 			streams.map(async stream => {
-				const recording =
-					await this.props.recordingRepository.findRecordingByStreamId(
+				const [recording, download] = await Promise.all([
+					this.props.recordingRepository.findRecordingByStreamId(
 						stream.streamId
-					)
+					),
+					this.props.downloadRepository.findDownloadByStreamId(stream.streamId),
+				])
 
 				return {
 					streamId: stream.streamId,
@@ -91,6 +93,13 @@ export class ChannelDetailsUseCase {
 								quality: recording.quality,
 								bytes: recording.bytes,
 								endedAt: recording.endedAt,
+							}
+						: null,
+					download: download
+						? {
+								status: download.status,
+								progress: download.progress,
+								endedAt: download.endedAt,
 							}
 						: null,
 				}

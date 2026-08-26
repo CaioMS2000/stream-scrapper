@@ -24,6 +24,9 @@ export function registerChannelDetails(program: Command) {
 				} else {
 					const { channel, streams } = res
 					const status = channel.isLive ? 'ao vivo' : 'offline'
+					const formatedDate = dayjs(channel.monitoredSince).format(
+						'DD/MM/YYYY'
+					)
 					const autoRecord = channel.autoRecord
 						? 'auto-record: on'
 						: 'auto-record: off'
@@ -31,7 +34,7 @@ export function registerChannelDetails(program: Command) {
 						`${channel.username} (${channel.displayName}) — ${status}, ${autoRecord}`
 					)
 					console.log(
-						`qualidade: ${channel.qualityPref} · monitorado desde ${channel.monitoredSince.toISOString()}`
+						`qualidade: ${channel.qualityPref} · monitorado desde ${formatedDate}`
 					)
 					console.log('')
 
@@ -39,9 +42,15 @@ export function registerChannelDetails(program: Command) {
 						console.log('nenhuma stream detectada')
 					} else {
 						for (const stream of streams) {
-							const marker = stream.recording
-								? `[gravado: ${stream.recording.status}]`
-								: '[sem gravação]'
+							const markers: string[] = []
+							if (stream.recording) {
+								markers.push(`[gravado: ${stream.recording.status}]`)
+							}
+							if (stream.download) {
+								markers.push(`[vod baixado: ${stream.download.status}]`)
+							}
+							const marker =
+								markers.length > 0 ? markers.join(' ') : '[sem gravação]'
 							const formatedDate = dayjs(stream.startedAt).format('DD/MM/YYYY')
 							console.log(
 								`${formatedDate} - "${stream.title}" - ${stream.streamId}`
