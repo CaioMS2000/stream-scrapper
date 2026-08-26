@@ -5,7 +5,7 @@ import {
 	VodDownloadFailedError,
 	VodNotRecoverableError,
 } from '@/@errors'
-import type { VideoQuality } from '@/application/models/types'
+import type { ResolvedVia, VideoQuality } from '@/application/models/types'
 import type { CdnResolution } from '@/infrastructure/cdn-recovery'
 import type { VodDownloader } from '@/infrastructure/downloader'
 import type { MediaStorage } from '@/infrastructure/media-storage'
@@ -93,6 +93,7 @@ export class DownloadVodUseCase {
 		})
 
 		let resolved: Awaited<ReturnType<typeof this.props.resolveCdn>> = null
+		let resolvedVia: ResolvedVia | null = null
 
 		if (stream.vodId) {
 			const channel = await this.props.channelRepository.findChannel(
@@ -102,6 +103,7 @@ export class DownloadVodUseCase {
 				vodId: stream.vodId,
 				qualityPref: channel?.qualityPref ?? 'source',
 			})
+			if (resolved) resolvedVia = 'official'
 		}
 
 		if (!resolved) {
@@ -110,9 +112,10 @@ export class DownloadVodUseCase {
 				streamId: stream.streamId,
 				startedAt: stream.startedAt,
 			})
+			if (resolved) resolvedVia = 'cdn'
 		}
 
-		if (!resolved) {
+		if (!resolved || !resolvedVia) {
 			return failure(new VodNotRecoverableError(streamId))
 		}
 
@@ -132,6 +135,10 @@ export class DownloadVodUseCase {
 				status: 'downloading',
 				storagePath: fullPath,
 				progress: 0,
+				resolvedVia,
+				host: resolved.host,
+				baseUrl: resolved.baseUrl,
+				segments: JSON.stringify(resolved.segments),
 			})
 		} catch (error) {
 			if (
@@ -146,6 +153,7 @@ export class DownloadVodUseCase {
 		try {
 			await this.props.downloader.downloadVod({
 				streamId: stream.streamId,
+				host: resolved.host,
 				baseUrl: resolved.baseUrl,
 				segments: resolved.segments,
 				destinationPath: fullPath,

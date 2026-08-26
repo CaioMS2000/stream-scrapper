@@ -1,7 +1,10 @@
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { encodeMessage, LineBuffer } from '@repo/ipc'
 import type { EventBus } from '@/@shared/events'
 import type { DownloadRepository } from '@/application/repositories'
+import {
+	ExecutorMessage,
+	type MaterialMessage,
+} from '@/infrastructure/vod-executor'
 import { DownloadFailedEvent } from './@events/download-failed'
 import { DownloadFinishedEvent } from './@events/download-finished'
 import type { DownloadVodParams, VodDownloader } from './types'
@@ -9,29 +12,44 @@ import type { DownloadVodParams, VodDownloader } from './types'
 export type HttpVodDownloaderProps = {
 	bus: EventBus
 	downloadRepository: DownloadRepository
-	// Fetches de segments em paralelo, por download.
+	// Fetches de segments em paralelo, por download — repassado pro
+	// executor via `material` (ele não lê env/config próprio).
 	segmentConcurrency: number
 	// Downloads simultâneos (streams diferentes) permitidos ao mesmo tempo.
 	maxConcurrentDownloads: number
+	// Caminho do entrypoint do executor — sobrescrevível em teste.
+	executorEntrypointPath?: string
 }
 
 type ActiveDownload = {
 	streamId: string
+	proc: Bun.Subprocess<'pipe', 'pipe', 'pipe'>
+	totalSegments: number
 }
 
-const SEGMENT_RETRY_ATTEMPTS = 3
-const SEGMENT_RETRY_BASE_DELAY_MS = 500
-const PROGRESS_UPDATE_EVERY_N_SEGMENTS = 10
+const STDERR_TAIL_MAX = 50
+// Renovado a cada `progress` recebido — starting point conservador, não
+// calibrado cientificamente (fora de escopo desta fatia, ver
+// past conversations/decisoes-downloader.md, "Questões em aberto").
+const LEASE_TTL_MS = 2 * 60_000
 
-// Driven adapter que baixa os segments de um VOD já resolvido (via
-// infrastructure/cdn-recovery, no caminho implementado hoje) e concatena
-// num único `.ts` — mesma forma de infrastructure/recorder/ (interface,
-// eventos no bus), mas sem child process supervisionado: é um worker HTTP
-// assíncrono dentro do próprio processo do daemon. Ver
-// docs/design/002-download-de-vods.md seção D.
+const DEFAULT_EXECUTOR_ENTRYPOINT_PATH = new URL(
+	'../vod-executor/executor-entrypoint.ts',
+	import.meta.url
+).pathname
+
+// Driven adapter que baixa os segments de um VOD já resolvido — despachante
+// central que spawna um child process "burro" por download (mesmo padrão
+// já usado por infrastructure/recorder/ pro streamlink, só que agora
+// rodando código nosso). Protocolo de 5 mensagens NDJSON pela
+// stdin/stdout do child, ver infrastructure/vod-executor/protocol.ts. Ver
+// docs/design/002-download-de-vods.md seção D e
+// past conversations/decisoes-downloader.md pro raciocínio completo por
+// trás desse desenho (child process vs worker thread, cursor durável,
+// posse por parentesco de processo).
 export class HttpVodDownloader implements VodDownloader {
 	// Single source of truth pra "quem está baixando agora" — mesmo padrão
-	// do `activeRecordings` do StreamRecorder.
+	// do `activeRecordings` do StreamRecorder. jobId === streamId (1:1).
 	private readonly activeDownloads = new Map<string, ActiveDownload>()
 
 	constructor(private readonly props: HttpVodDownloaderProps) {}
@@ -41,7 +59,8 @@ export class HttpVodDownloader implements VodDownloader {
 	}
 
 	async downloadVod(params: DownloadVodParams): Promise<void> {
-		const { streamId, baseUrl, segments, destinationPath } = params
+		const { streamId, host, baseUrl, segments, destinationPath, resumeFrom } =
+			params
 
 		if (this.activeDownloads.has(streamId)) {
 			throw new Error(
@@ -49,150 +68,173 @@ export class HttpVodDownloader implements VodDownloader {
 			)
 		}
 
-		mkdirSync(destinationPath, { recursive: true })
-		const outputPath = `${destinationPath}/stream.ts`
+		const entrypointPath =
+			this.props.executorEntrypointPath ?? DEFAULT_EXECUTOR_ENTRYPOINT_PATH
 
-		this.activeDownloads.set(streamId, { streamId })
-
-		// Trabalho em background — não aguardado aqui, mesma assimetria do
-		// StreamRecorder.recordTwitchStream (spawna e retorna; a conclusão
-		// chega depois via evento no bus, não pelo retorno desta chamada).
-		void this.run({ streamId, baseUrl, segments, outputPath }).finally(() => {
-			this.activeDownloads.delete(streamId)
+		const proc = Bun.spawn({
+			cmd: [process.execPath, 'run', entrypointPath],
+			stdin: 'pipe',
+			stdout: 'pipe',
+			stderr: 'pipe',
 		})
+
+		const entry: ActiveDownload = {
+			streamId,
+			proc,
+			totalSegments: segments.length,
+		}
+		this.activeDownloads.set(streamId, entry)
+
+		const material: MaterialMessage = {
+			type: 'material',
+			jobId: streamId,
+			host,
+			baseUrl,
+			segments,
+			segmentsFrom: resumeFrom?.segmentIndex ?? 0,
+			byteOffsetFrom: resumeFrom?.byteOffset ?? 0,
+			destinationPath,
+			segmentConcurrency: this.props.segmentConcurrency,
+		}
+		proc.stdin.write(encodeMessage(material))
+		void proc.stdin.flush()
+
+		console.log(
+			`[downloader] ${streamId}: executor spawned (pid=${proc.pid}, resumeFrom=${resumeFrom?.segmentIndex ?? 0})`
+		)
+
+		void this.consumeStdout(entry, material)
+		void this.consumeStderr(proc, streamId)
+
+		void proc.exited.then(exitCode => this.handleExit(streamId, exitCode))
 	}
 
-	private async run(params: {
-		streamId: string
-		baseUrl: string
-		segments: string[]
-		outputPath: string
-	}): Promise<void> {
-		const { streamId, baseUrl, segments, outputPath } = params
-		const storagePath = dirname(outputPath)
-		const total = segments.length
+	// Chamado no shutdown do daemon pra não deixar executor órfão de
+	// processo — mirror exato de StreamRecorder.stopAll/stopStream. A
+	// correção do resume não depende de parada graciosa no meio de um
+	// segment: truncate+append no cold resume tolera kill a qualquer
+	// momento (ver ResumeOrphanedDownloadsUseCase).
+	async stopAll(): Promise<void> {
+		const entries = [...this.activeDownloads.values()]
+		for (const entry of entries) {
+			entry.proc.kill('SIGTERM')
+		}
+		await Promise.allSettled(entries.map(e => e.proc.exited))
+	}
 
+	private async consumeStdout(
+		entry: ActiveDownload,
+		originalMaterial: MaterialMessage
+	): Promise<void> {
+		const lineBuffer = new LineBuffer()
+		const decoder = new TextDecoder()
 		try {
-			const { bytes } = await this.downloadSegmentsInOrder({
-				baseUrl,
-				segments,
-				outputPath,
-				onProgress: written => {
-					// Progresso é reação, não invariante (ver
-					// apps/daemon/notes/speculation-early-recorder-invariants-vs-reactions.md)
-					// — perder um tick não corrompe nada, então é fire-and-forget e
-					// throttled pra não martelar o banco a cada segment.
-					if (
-						written % PROGRESS_UPDATE_EVERY_N_SEGMENTS !== 0 &&
-						written !== total
-					) {
-						return
-					}
-					void this.props.downloadRepository
-						.updateDownloadByStreamId({ streamId, progress: written / total })
-						.catch(error => {
-							console.error('[downloader] progress update failed:', error)
-						})
-				},
-			})
-
-			await this.props.bus.publish(
-				new DownloadFinishedEvent({
-					streamId,
-					endedAt: new Date(),
-					storagePath,
-					bytes,
-				})
-			)
+			for await (const chunk of entry.proc.stdout) {
+				const lines = lineBuffer.push(decoder.decode(chunk, { stream: true }))
+				for (const line of lines) {
+					const message = ExecutorMessage.parse(JSON.parse(line))
+					await this.handleMessage(entry, originalMaterial, message)
+				}
+			}
 		} catch (error) {
-			console.error(`[downloader] ${streamId}: download falhou:`, error)
-			await this.props.bus.publish(
-				new DownloadFailedEvent({
-					streamId,
-					endedAt: new Date(),
-					storagePath,
-					bytes: undefined,
-					reason: error instanceof Error ? error.message : String(error),
-				})
+			console.error(
+				`[downloader] ${entry.streamId}: erro consumindo stdout do executor:`,
+				error
 			)
 		}
 	}
 
-	// Baixa segments com um pool limitado de workers concorrentes, mas
-	// escreve no arquivo de saída ESTRITAMENTE em ordem — um buffer indexado
-	// segura segments que chegaram fora de ordem até o próximo índice
-	// pendente completar, então escreve e libera da memória. Concatenação
-	// direta de `.ts` é segura (MPEG-TS é auto-contido por design, mesma
-	// premissa da ADR 004).
-	private async downloadSegmentsInOrder(params: {
-		baseUrl: string
-		segments: string[]
-		outputPath: string
-		onProgress?: (written: number, total: number) => void
-	}): Promise<{ bytes: number }> {
-		const { baseUrl, segments, outputPath, onProgress } = params
-		const concurrency = Math.max(1, this.props.segmentConcurrency)
-
-		const file = Bun.file(outputPath)
-		const writer = file.writer()
-
-		const pending = new Map<number, Uint8Array>()
-		let nextToWrite = 0
-		let nextToFetch = 0
-		let totalBytes = 0
-
-		const drain = () => {
-			while (pending.has(nextToWrite)) {
-				const chunk = pending.get(nextToWrite)
-				if (!chunk) break
-				pending.delete(nextToWrite)
-				writer.write(chunk)
-				totalBytes += chunk.byteLength
-				nextToWrite++
-				onProgress?.(nextToWrite, segments.length)
+	private async handleMessage(
+		entry: ActiveDownload,
+		originalMaterial: MaterialMessage,
+		message: ExecutorMessage
+	): Promise<void> {
+		switch (message.type) {
+			case 'progress':
+				await this.props.downloadRepository
+					.updateDownloadByStreamId({
+						streamId: entry.streamId,
+						segmentIndex: message.segmentIndex,
+						byteOffset: message.byteOffset,
+						leaseUntil: new Date(Date.now() + LEASE_TTL_MS),
+						progress: message.segmentIndex / entry.totalSegments,
+					})
+					.catch(error => {
+						console.error('[downloader] progress update failed:', error)
+					})
+				break
+			case 'need-material': {
+				// Reenvia o material já conhecido — nunca re-resolve (ver nota no
+				// design doc: segments não parecem exigir auth depois de
+				// resolvidos, esperado ficar dormente). `segmentsFrom`/
+				// `byteOffsetFrom` são ignorados pelo executor fora do spawn
+				// inicial, então reenviar os valores originais é inofensivo.
+				entry.proc.stdin.write(encodeMessage(originalMaterial))
+				void entry.proc.stdin.flush()
+				break
 			}
+			case 'done':
+				await this.props.bus.publish(
+					new DownloadFinishedEvent({
+						streamId: entry.streamId,
+						endedAt: new Date(),
+						storagePath: originalMaterial.destinationPath,
+						bytes: undefined,
+					})
+				)
+				break
+			case 'failed':
+				console.error(
+					`[downloader] ${entry.streamId}: executor reportou falha:`,
+					message.error
+				)
+				await this.props.bus.publish(
+					new DownloadFailedEvent({
+						streamId: entry.streamId,
+						endedAt: new Date(),
+						storagePath: originalMaterial.destinationPath,
+						bytes: undefined,
+						reason: message.error,
+					})
+				)
+				break
 		}
-
-		const worker = async () => {
-			while (true) {
-				// Sem `await` entre leitura e incremento — seguro mesmo com
-				// múltiplos workers concorrentes (JS é single-threaded).
-				const index = nextToFetch++
-				if (index >= segments.length) return
-
-				const segmentUrl = `${baseUrl}/${segments[index]}`
-				const bytes = await this.fetchSegmentWithRetry(segmentUrl)
-				pending.set(index, bytes)
-				drain()
-			}
-		}
-
-		const workerCount = Math.min(concurrency, segments.length)
-		await Promise.all(Array.from({ length: workerCount }, () => worker()))
-
-		await writer.end()
-
-		return { bytes: totalBytes }
 	}
 
-	private async fetchSegmentWithRetry(url: string): Promise<Uint8Array> {
-		let lastError: unknown
-
-		for (let attempt = 1; attempt <= SEGMENT_RETRY_ATTEMPTS; attempt++) {
-			try {
-				const response = await fetch(url)
-				if (!response.ok) {
-					throw new Error(`segment fetch failed: ${response.status} ${url}`)
-				}
-				return new Uint8Array(await response.arrayBuffer())
-			} catch (error) {
-				lastError = error
-				if (attempt < SEGMENT_RETRY_ATTEMPTS) {
-					await Bun.sleep(SEGMENT_RETRY_BASE_DELAY_MS * attempt)
+	private async consumeStderr(
+		proc: Bun.Subprocess<'pipe', 'pipe', 'pipe'>,
+		streamId: string
+	): Promise<void> {
+		const decoder = new TextDecoder()
+		const tail: string[] = []
+		try {
+			for await (const chunk of proc.stderr) {
+				const text = decoder.decode(chunk, { stream: true })
+				for (const line of text.split('\n')) {
+					if (!line) continue
+					tail.push(line)
+					if (tail.length > STDERR_TAIL_MAX) tail.shift()
 				}
 			}
+		} catch (error) {
+			console.error(`[downloader] ${streamId}: erro consumindo stderr:`, error)
 		}
+		if (tail.length > 0) {
+			console.error(`[downloader] ${streamId}: stderr do executor:`, tail)
+		}
+	}
 
-		throw lastError instanceof Error ? lastError : new Error(String(lastError))
+	private handleExit(streamId: string, exitCode: number | null): void {
+		this.activeDownloads.delete(streamId)
+		if (exitCode !== 0) {
+			// `done`/`failed` já publicaram o evento correspondente na maioria
+			// dos casos — isso aqui é rede de segurança pra crash sem mensagem
+			// nenhuma (o `download` fica `downloading`, resolvido no próximo
+			// boot scan — ver ResumeOrphanedDownloadsUseCase e a decisão de
+			// escopo de não respawnar em runtime).
+			console.error(
+				`[downloader] ${streamId}: executor saiu com código ${exitCode}`
+			)
+		}
 	}
 }

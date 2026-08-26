@@ -18,6 +18,7 @@ import {
 	ListHarvestChannelsUseCase,
 	RemoveChannelUseCase,
 	RemoveHarvestChannelUseCase,
+	ResumeOrphanedDownloadsUseCase,
 	StartRecordingUseCase,
 	StopRecordingUseCase,
 } from './application/use-cases'
@@ -206,6 +207,12 @@ async function main() {
 	const listHarvestChannels = new ListHarvestChannelsUseCase({
 		harvestChannelRepository,
 	})
+	// Cold resume: retoma downloads órfãos de um restart anterior — ver
+	// infrastructure/vod-executor e past conversations/decisoes-downloader.md.
+	const resumeOrphanedDownloads = new ResumeOrphanedDownloadsUseCase({
+		downloadRepository,
+		downloader: vodDownloader,
+	})
 
 	// Detector — publica eventos no bus, não conhece consumidores
 	const monitor = new ChannelMonitor({
@@ -294,6 +301,14 @@ async function main() {
 		if (result.isFailure()) console.error('[finalize-download]', result.value)
 	})
 
+	// Antes de começar a aceitar comandos novos: retoma qualquer download
+	// que ficou `downloading` órfão de um restart anterior (crash ou
+	// shutdown que não conseguiu parar os executores a tempo).
+	const resumeResult = await resumeOrphanedDownloads.execute()
+	if (resumeResult.isFailure()) {
+		console.error('[resume-orphaned-downloads]', resumeResult.value)
+	}
+
 	monitor.startMonitoring()
 	vodLinker.start()
 	cdnHostHarvester.start()
@@ -331,11 +346,11 @@ async function main() {
 			// Para todos os streamlink filhos ANTES do IPC — evita deixar
 			// child process órfão se o kernel bater no daemon logo depois.
 			await recorder.stopAll()
-			// TODO: downloads de VOD em andamento não são abortados/retomados no
-			// shutdown (decisão consciente de escopo, ver
-			// docs/design/002-download-de-vods.md) — um download interrompido
-			// aqui fica com status 'downloading' órfão até uma limpeza no boot
-			// existir.
+			// Mesma lógica pros executores de download — se um ficar
+			// `downloading` órfão mesmo assim (kill -9 no meio, sem tempo pro
+			// SIGTERM), o boot scan do próximo start resolve (ver
+			// ResumeOrphanedDownloadsUseCase).
+			await vodDownloader.stopAll()
 			// Fecha o listener e remove o arquivo de socket pra não deixar órfão.
 			await ipc.close()
 			resolve()
