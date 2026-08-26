@@ -2,7 +2,11 @@
 
 **Status:** implementado (2026-08-25) — ver "Fatiado — v1 implementado"
 abaixo. Este documento captura o raciocínio de desenho discutido
-antes/durante a implementação.
+antes/durante a implementação. A seção D (execução do download) foi
+reescrita depois da v1 pra ficar retomável entre boots — ver
+[ADR 006](../decisions/006-vod-download-child-process-resumable.md) pro
+raciocínio completo dessa segunda fatia; o texto da seção D abaixo já
+reflete o desenho atual, não o da v1 original.
 
 ## Fatiado — v1 implementado
 
@@ -28,6 +32,9 @@ estão implementadas:
   resolver.
 - **D (execução do download)** — `HttpVodDownloader`
   (`infrastructure/downloader`), pool de segments, retry, eventos no bus.
+  **Reescrita depois da v1** (mesmo dia, 2026-08-25) pra virar um
+  despachante que spawna child process por download — ver "D. Execução do
+  download" abaixo (já atualizada) e [ADR 006](../decisions/006-vod-download-child-process-resumable.md).
 - **E (persistência)** — `DrizzleDownloadRepository`, índice único
   parcial pra idempotência sob concorrência.
 - **Harvesting de hosts** — tabela `cdn_host` (Drizzle), seedada no boot
@@ -278,18 +285,32 @@ url      = f"https://{cdn_host}/{urlhash}_{hashable}/chunked/index-dvr.m3u8"
 
 ### D. Execução do download
 
-- Novo driven adapter `infrastructure/downloader/` (`VodDownloader`),
-  espelhando a *forma* de `infrastructure/recorder/` (interface, eventos no
-  bus) mas **sem child process supervisionado** — é HTTP assíncrono dentro
-  do próprio processo do daemon, não um subprocess.
-- Pool de download de segments (proposta inicial: 4-6 em paralelo), com
-  buffer de reordenação já que a escrita final precisa respeitar a ordem do
-  playlist mesmo se a rede responder fora de ordem.
-- Retry por segment individual com backoff antes de falhar o download
-  inteiro.
+**Atualizado (2026-08-25, segunda fatia) — ver [ADR 006](../decisions/006-vod-download-child-process-resumable.md)
+pro raciocínio completo.** A v1 rodava HTTP assíncrono dentro do próprio
+processo do daemon, sem child process. Reescrito pra ficar retomável entre
+boots:
+
+- `infrastructure/downloader/` (`HttpVodDownloader`) é agora um
+  **despachante central**: spawna um child process "burro" por download
+  (`Bun.spawn`, código próprio via `infrastructure/vod-executor/executor-entrypoint.ts`)
+  — mesmo padrão de `infrastructure/recorder/` pro streamlink (ADR 004),
+  só que rodando código nosso em vez de um binário de terceiros.
+- Protocolo de 5 mensagens NDJSON entre pai e filho pela stdin/stdout
+  (`infrastructure/vod-executor/protocol.ts`), reaproveitando o framing
+  (`encodeMessage`/`LineBuffer`) de `@repo/ipc`.
+- Pool de download de segments dentro do executor (concorrência
+  configurável via `segmentConcurrency`), com buffer de reordenação já que
+  a escrita final precisa respeitar a ordem do playlist mesmo se a rede
+  responder fora de ordem. Retry por segment individual antes de reportar
+  falha.
+- Cursor durável `(segmentIndex, byteOffset)` reportado periodicamente
+  (mensagem `progress`) e persistido no `download` **depois** dos bytes
+  em disco — permite truncar e retomar exatamente de onde parou depois de
+  um restart do daemon (`ResumeOrphanedDownloadsUseCase`, disparado no
+  boot).
 - Eventos no bus espelhando `RecordingFinished`/`RecordingFailed`:
-  `DownloadFinishedEvent`, `DownloadFailedEvent` (e, opcionalmente,
-  `DownloadProgressEvent` pra granularidade fina).
+  `DownloadFinishedEvent`, `DownloadFailedEvent`, publicados pelo
+  despachante quando o executor reporta `done`/`failed`.
 
 ### E. Persistência e ciclo de vida
 

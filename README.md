@@ -318,7 +318,8 @@ bun scrapper remove-channel <user>           # remove canal (bloqueado se estive
 bun scrapper list-channels                   # lista canais e o status de cada um
 bun scrapper start-record <user>             # força gravação (canal precisa estar ao vivo)
 bun scrapper stop-record <user>              # interrompe gravação em andamento
-bun scrapper channel-details <user>          # perfil do canal + streams e gravações
+bun scrapper channel-details <user>          # perfil do canal + streams, gravações e downloads de VOD
+bun scrapper download-vod <streamId>         # baixa o VOD de uma stream já registrada (oficial, com fallback via CDN)
 bun scrapper add-harvest-channel <channel>   # adiciona canal à lista de harvesting ativo de CDN
 bun scrapper remove-harvest-channel <channel> # remove canal da lista de harvesting ativo
 bun scrapper list-harvest-channels           # lista os canais dessa lista
