@@ -174,6 +174,9 @@ export class HttpVodDownloader implements VodDownloader {
 				break
 			}
 			case 'done':
+				console.log(
+					`[downloader] ${entry.streamId}: download finalizado (${entry.totalSegments} segments)`
+				)
 				await this.props.bus.publish(
 					new DownloadFinishedEvent({
 						streamId: entry.streamId,
