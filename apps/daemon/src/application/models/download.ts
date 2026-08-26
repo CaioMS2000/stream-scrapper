@@ -1,4 +1,4 @@
-import type { DownloadStatus } from './types'
+import type { DownloadStatus, ResolvedVia } from './types'
 
 export type DownloadModel = {
 	id: string
@@ -8,4 +8,11 @@ export type DownloadModel = {
 	storagePath: string
 	createdAt: Date
 	endedAt: Date | null
+	resolvedVia: ResolvedVia | null
+	host: string | null
+	baseUrl: string | null
+	segments: string | null
+	segmentIndex: number
+	byteOffset: number
+	leaseUntil: Date | null
 }

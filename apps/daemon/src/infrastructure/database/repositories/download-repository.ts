@@ -59,4 +59,14 @@ export class DrizzleDownloadRepository implements DownloadRepository {
 
 		return record ?? null
 	}
+
+	async listDownloadsByStatus(
+		status: DownloadModel['status']
+	): Promise<DownloadModel[]> {
+		return this.drizzle
+			.select()
+			.from(downloadTable)
+			.where(eq(downloadTable.status, status))
+			.all()
+	}
 }

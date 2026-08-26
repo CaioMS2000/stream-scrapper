@@ -6,7 +6,7 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
-import { DownloadStatus } from '@/application/models/types'
+import { DownloadStatus, ResolvedVia } from '@/application/models/types'
 
 export const downloadTable = sqliteTable(
 	'download',
@@ -22,6 +22,20 @@ export const downloadTable = sqliteTable(
 		storagePath: text('storage_path').notNull(),
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 		endedAt: integer('ended_at', { mode: 'timestamp' }),
+		// Material resolvido, persistido pra permitir retomada sem re-resolver
+		// (docs/design segments é imutável) — ver
+		// past conversations/decisoes-downloader.md §8-10.
+		resolvedVia: text('resolved_via', { enum: ResolvedVia }),
+		host: text('host'),
+		baseUrl: text('base_url'),
+		segments: text('segments'), // JSON.stringify(string[])
+		// Cursor durável — par, não um contador só (ver §8 do documento acima).
+		segmentIndex: integer('segment_index').notNull().default(0),
+		byteOffset: integer('byte_offset').notNull().default(0),
+		// Renovado a cada `progress` recebido do executor vivo — rede de
+		// segurança pro boot scan distinguir órfão real de download saudável
+		// quando o daemon inteiro reinicia (§12-13 do documento acima).
+		leaseUntil: integer('lease_until', { mode: 'timestamp' }),
 	},
 	table => [
 		// Índice único parcial: no máximo um download ativo (queued/downloading)
