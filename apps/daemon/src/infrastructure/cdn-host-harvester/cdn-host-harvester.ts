@@ -3,6 +3,7 @@ import type {
 	HarvestChannelRepository,
 } from '@/application/repositories'
 import type { HarvestCdnHostsUseCase } from '@/application/use-cases'
+import { logger } from '../../@shared/logger'
 import type { Optional } from '../../@shared/types'
 
 export type CdnHostHarvesterProps = {
@@ -42,7 +43,7 @@ export class CdnHostHarvester {
 		try {
 			await this.tick()
 		} catch (error) {
-			console.error('[cdn-host-harvester] tick failed:', error)
+			logger.error('[cdn-host-harvester] tick failed:', error)
 		}
 		// setTimeout que se reagenda: garante zero overlap se o tick atrasar —
 		// mesmo padrão do VodLinker/ChannelMonitor.
@@ -71,11 +72,11 @@ export class CdnHostHarvester {
 					channelName,
 				})
 				if (result.isFailure()) {
-					console.error('[cdn-host-harvester]', result.value)
+					logger.error('[cdn-host-harvester]', result.value)
 				}
 			} catch (error) {
 				// Um canal com erro inesperado não deve abortar o resto do lote.
-				console.error(
+				logger.error(
 					`[cdn-host-harvester] execute falhou pra channelName ${channelName}:`,
 					error
 				)

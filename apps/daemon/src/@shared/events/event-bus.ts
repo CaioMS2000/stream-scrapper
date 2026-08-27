@@ -1,3 +1,5 @@
+import { logger } from '../logger'
+
 // Contrato base pra todos os eventos que trafegam no bus. `occurredAt`
 // marca "quando o evento nasceu no daemon" — útil pra handlers cross-cutting
 // (log, audit, métrica) que querem timestamp uniforme sem depender do shape
@@ -35,7 +37,7 @@ export class EventBus {
 			try {
 				await handler(event)
 			} catch (err) {
-				console.error('[bus] handler failed:', err)
+				logger.error('[bus] handler failed:', err)
 			}
 		}
 	}

@@ -1,4 +1,5 @@
 import { truncateSync } from 'node:fs'
+import { logger } from '@/@shared/logger'
 import type { VodDownloader } from '@/infrastructure/downloader'
 import { type Result, success } from '@/result'
 import type { DownloadRepository } from '../repositories'
@@ -34,7 +35,7 @@ export class ResumeOrphanedDownloadsUseCase {
 
 		for (const orphan of orphans) {
 			if (orphan.leaseUntil && orphan.leaseUntil.getTime() > now) {
-				console.warn(
+				logger.warn(
 					`[resume-orphaned-downloads] ${orphan.streamId}: lease ainda válido, pulando (inesperado logo após boot)`
 				)
 				continue
@@ -44,7 +45,7 @@ export class ResumeOrphanedDownloadsUseCase {
 				// Row de antes desta feature existir — sem material persistido,
 				// não dá pra retomar. Marca como failed em vez de deixar
 				// `downloading` pra sempre.
-				console.warn(
+				logger.warn(
 					`[resume-orphaned-downloads] ${orphan.streamId}: sem material persistido, marcando como failed`
 				)
 				await this.props.downloadRepository
@@ -54,7 +55,7 @@ export class ResumeOrphanedDownloadsUseCase {
 						endedAt: new Date(),
 					})
 					.catch(error => {
-						console.error('[resume-orphaned-downloads]', error)
+						logger.error('[resume-orphaned-downloads]', error)
 					})
 				continue
 			}
@@ -68,7 +69,7 @@ export class ResumeOrphanedDownloadsUseCase {
 					'code' in error &&
 					(error as NodeJS.ErrnoException).code === 'ENOENT'
 				if (!isMissingFile) {
-					console.error(
+					logger.error(
 						`[resume-orphaned-downloads] ${orphan.streamId}: falha ao truncar arquivo, pulando:`,
 						error
 					)
@@ -91,7 +92,7 @@ export class ResumeOrphanedDownloadsUseCase {
 					},
 				})
 			} catch (error) {
-				console.error(
+				logger.error(
 					`[resume-orphaned-downloads] ${orphan.streamId}: falha ao retomar:`,
 					error
 				)

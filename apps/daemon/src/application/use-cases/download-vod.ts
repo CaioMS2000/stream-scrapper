@@ -5,6 +5,7 @@ import {
 	VodDownloadFailedError,
 	VodNotRecoverableError,
 } from '@/@errors'
+import { logger } from '@/@shared/logger'
 import type { ResolvedVia, VideoQuality } from '@/application/models/types'
 import type { CdnResolution } from '@/infrastructure/cdn-recovery'
 import type { VodDownloader } from '@/infrastructure/downloader'
@@ -126,7 +127,7 @@ export class DownloadVodUseCase {
 			// B em downloads futuros.
 			await this.props.cdnHostRepository.recordHost(resolved.host)
 		} catch (error) {
-			console.error('[download-vod] failed to record cdn host:', error)
+			logger.error('[download-vod] failed to record cdn host:', error)
 		}
 
 		try {

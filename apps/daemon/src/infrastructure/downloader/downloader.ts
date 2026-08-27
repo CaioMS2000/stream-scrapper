@@ -1,5 +1,6 @@
 import { encodeMessage, LineBuffer } from '@repo/ipc'
 import type { EventBus } from '@/@shared/events'
+import { logger } from '@/@shared/logger'
 import type { DownloadRepository } from '@/application/repositories'
 import {
 	ExecutorMessage,
@@ -99,7 +100,7 @@ export class HttpVodDownloader implements VodDownloader {
 		proc.stdin.write(encodeMessage(material))
 		void proc.stdin.flush()
 
-		console.log(
+		logger.log(
 			`[downloader] ${streamId}: executor spawned (pid=${proc.pid}, resumeFrom=${resumeFrom?.segmentIndex ?? 0})`
 		)
 
@@ -137,7 +138,7 @@ export class HttpVodDownloader implements VodDownloader {
 				}
 			}
 		} catch (error) {
-			console.error(
+			logger.error(
 				`[downloader] ${entry.streamId}: erro consumindo stdout do executor:`,
 				error
 			)
@@ -160,7 +161,7 @@ export class HttpVodDownloader implements VodDownloader {
 						progress: message.segmentIndex / entry.totalSegments,
 					})
 					.catch(error => {
-						console.error('[downloader] progress update failed:', error)
+						logger.error('[downloader] progress update failed:', error)
 					})
 				break
 			case 'need-material': {
@@ -174,7 +175,7 @@ export class HttpVodDownloader implements VodDownloader {
 				break
 			}
 			case 'done':
-				console.log(
+				logger.log(
 					`[downloader] ${entry.streamId}: download finalizado (${entry.totalSegments} segments)`
 				)
 				await this.props.bus.publish(
@@ -187,7 +188,7 @@ export class HttpVodDownloader implements VodDownloader {
 				)
 				break
 			case 'failed':
-				console.error(
+				logger.error(
 					`[downloader] ${entry.streamId}: executor reportou falha:`,
 					message.error
 				)
@@ -220,10 +221,10 @@ export class HttpVodDownloader implements VodDownloader {
 				}
 			}
 		} catch (error) {
-			console.error(`[downloader] ${streamId}: erro consumindo stderr:`, error)
+			logger.error(`[downloader] ${streamId}: erro consumindo stderr:`, error)
 		}
 		if (tail.length > 0) {
-			console.error(`[downloader] ${streamId}: stderr do executor:`, tail)
+			logger.error(`[downloader] ${streamId}: stderr do executor:`, tail)
 		}
 	}
 
@@ -235,7 +236,7 @@ export class HttpVodDownloader implements VodDownloader {
 			// nenhuma (o `download` fica `downloading`, resolvido no próximo
 			// boot scan — ver ResumeOrphanedDownloadsUseCase e a decisão de
 			// escopo de não respawnar em runtime).
-			console.error(
+			logger.error(
 				`[downloader] ${streamId}: executor saiu com código ${exitCode}`
 			)
 		}

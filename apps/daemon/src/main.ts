@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { resolveSocketPath } from '@repo/ipc'
 import { EventBus } from './@shared/events'
+import { logger } from './@shared/logger'
 import {
 	AddChannelUseCase,
 	AddHarvestChannelUseCase,
@@ -56,7 +57,7 @@ import { VodLinker } from './infrastructure/vod-linker'
 import { applyMigrations, createDrizzle } from './lib/drizzle'
 import { createDatabase } from './lib/sqlite'
 
-console.log(`daemon started (pid ${process.pid})`)
+logger.log(`daemon started (pid ${process.pid})`)
 
 async function main() {
 	// Ordem importa: o diretório precisa existir ANTES de abrir o banco —
@@ -257,11 +258,11 @@ async function main() {
 			title: event.title,
 			startedAt: event.startedAt,
 		})
-		if (result.isFailure()) console.error('[start-recording]', result.value)
+		if (result.isFailure()) logger.error('[start-recording]', result.value)
 	})
 	bus.subscribe(ChannelOfflineEvent, async event => {
 		const result = await stopRecording.execute({ channelName: event.username })
-		if (result.isFailure()) console.error('[stop-recording]', result.value)
+		if (result.isFailure()) logger.error('[stop-recording]', result.value)
 	})
 	bus.subscribe(RecordingFinishedEvent, async event => {
 		const result = await finalizeRecording.execute({
@@ -272,7 +273,7 @@ async function main() {
 			bytes: event.bytes,
 			status: 'finished',
 		})
-		if (result.isFailure()) console.error('[finalize-recording]', result.value)
+		if (result.isFailure()) logger.error('[finalize-recording]', result.value)
 	})
 	bus.subscribe(RecordingFailedEvent, async event => {
 		const result = await finalizeRecording.execute({
@@ -283,7 +284,7 @@ async function main() {
 			bytes: event.bytes,
 			status: 'failed',
 		})
-		if (result.isFailure()) console.error('[finalize-recording]', result.value)
+		if (result.isFailure()) logger.error('[finalize-recording]', result.value)
 	})
 	bus.subscribe(DownloadFinishedEvent, async event => {
 		const result = await finalizeDownload.execute({
@@ -291,7 +292,7 @@ async function main() {
 			endedAt: event.endedAt,
 			status: 'completed',
 		})
-		if (result.isFailure()) console.error('[finalize-download]', result.value)
+		if (result.isFailure()) logger.error('[finalize-download]', result.value)
 	})
 	bus.subscribe(DownloadFailedEvent, async event => {
 		const result = await finalizeDownload.execute({
@@ -299,7 +300,7 @@ async function main() {
 			endedAt: event.endedAt,
 			status: 'failed',
 		})
-		if (result.isFailure()) console.error('[finalize-download]', result.value)
+		if (result.isFailure()) logger.error('[finalize-download]', result.value)
 	})
 
 	// Antes de começar a aceitar comandos novos: retoma qualquer download
@@ -307,7 +308,7 @@ async function main() {
 	// shutdown que não conseguiu parar os executores a tempo).
 	const resumeResult = await resumeOrphanedDownloads.execute()
 	if (resumeResult.isFailure()) {
-		console.error('[resume-orphaned-downloads]', resumeResult.value)
+		logger.error('[resume-orphaned-downloads]', resumeResult.value)
 	}
 
 	monitor.startMonitoring()
@@ -335,12 +336,12 @@ async function main() {
 		socketPath,
 	})
 	await ipc.listen()
-	console.log(`ipc listening at ${socketPath}`)
+	logger.log(`ipc listening at ${socketPath}`)
 
 	// Shutdown limpo ───────────────────────────────────────────────────────
 	await new Promise<void>(resolve => {
 		const shutdown = async (signal: NodeJS.Signals) => {
-			console.log(`\nreceived ${signal}, shutting down...`)
+			logger.log(`\nreceived ${signal}, shutting down...`)
 			monitor.stop()
 			vodLinker.stop()
 			cdnHostHarvester.stop()

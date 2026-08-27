@@ -1,5 +1,6 @@
 import type { StreamRepository } from '@/application/repositories'
 import type { LinkVodUseCase } from '@/application/use-cases'
+import { logger } from '../../@shared/logger'
 import type { Optional } from '../../@shared/types'
 
 export type VodLinkerProps = {
@@ -34,7 +35,7 @@ export class VodLinker {
 		try {
 			await this.tick()
 		} catch (error) {
-			console.error('[vod-linker] tick failed:', error)
+			logger.error('[vod-linker] tick failed:', error)
 		}
 		// setTimeout que se reagenda: garante zero overlap se o tick atrasar —
 		// mesmo padrão do ChannelMonitor.
@@ -58,11 +59,11 @@ export class VodLinker {
 					streamId: stream.streamId,
 				})
 				if (result.isFailure()) {
-					console.error('[vod-linker]', result.value)
+					logger.error('[vod-linker]', result.value)
 				}
 			} catch (error) {
 				// Uma stream com erro inesperado não deve abortar o resto do lote.
-				console.error(
+				logger.error(
 					`[vod-linker] execute falhou pra streamId ${stream.streamId}:`,
 					error
 				)

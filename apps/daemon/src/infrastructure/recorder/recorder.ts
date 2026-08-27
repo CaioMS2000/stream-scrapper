@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { EventBus } from '@/@shared/events'
+import { logger } from '@/@shared/logger'
 import type { MediaStorage } from '@/infrastructure/media-storage'
 import type { TwitchClient } from '@/infrastructure/twitch/client'
 import { RecordingFailedEvent } from './@events/recording-failed'
@@ -113,7 +114,7 @@ export class StreamRecorder implements TwitchRecorder {
 		// stderr consumer não bloqueia shutdown — descarta o retorno.
 		void this.consumeStderr(proc, entry)
 
-		console.log(
+		logger.log(
 			`[recorder] ${channelName}: streamlink spawned (pid=${proc.pid}, output=${outputPath})`
 		)
 
@@ -133,7 +134,7 @@ export class StreamRecorder implements TwitchRecorder {
 		const key = username.toLowerCase()
 		const entry = this.activeRecordings.get(key)
 		if (!entry) {
-			console.warn(
+			logger.warn(
 				`[recorder] stopStream: nenhuma gravação ativa para ${username}`
 			)
 			return
@@ -146,7 +147,7 @@ export class StreamRecorder implements TwitchRecorder {
 		// força SIGKILL (arquivo pode ficar meio-finalizado, mas melhor que
 		// zumbi indefinido). handleExit cancela o timer se sair antes.
 		entry.killTimer = setTimeout(() => {
-			console.warn(
+			logger.warn(
 				`[recorder] ${username}: não terminou em ${SIGKILL_FALLBACK_MS / 1000}s após SIGTERM, enviando SIGKILL`
 			)
 			entry.proc.kill('SIGKILL')
@@ -222,7 +223,7 @@ export class StreamRecorder implements TwitchRecorder {
 				)
 				break
 			case 'error':
-				console.error(
+				logger.error(
 					`[recorder] ${key}: streamlink falhou (exit=${reason.exitCode}, signal=${reason.signalCode}). Últimas linhas de stderr:\n${reason.stderrTail.join('\n')}`
 				)
 				await this.props.bus.publish(
@@ -256,7 +257,7 @@ export class StreamRecorder implements TwitchRecorder {
 			}
 			if (leftover) entry.stderrTail.push(leftover)
 		} catch (error) {
-			console.error('[recorder] consumeStderr failed:', error)
+			logger.error('[recorder] consumeStderr failed:', error)
 		}
 	}
 }

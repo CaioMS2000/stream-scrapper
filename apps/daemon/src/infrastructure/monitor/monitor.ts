@@ -3,6 +3,7 @@ import type {
 	StreamRepository,
 } from '@/application/repositories'
 import type { EventBus } from '../../@shared/events'
+import { logger } from '../../@shared/logger'
 import type { Optional } from '../../@shared/types'
 import type { MediaStorage, StreamMetaStorage } from '../media-storage'
 import type { TwitchClient } from '../twitch/client'
@@ -50,7 +51,7 @@ export class ChannelMonitor {
 		try {
 			await this.checkOnLiveChannels()
 		} catch (error) {
-			console.error('[monitor] checkOnLiveChannels failed:', error)
+			logger.error('[monitor] checkOnLiveChannels failed:', error)
 		}
 		// setTimeout que se reagenda: garante zero overlap se checkOnLiveChannels() atrasar.
 		this.timer = setTimeout(() => this.startMonitoring(), this.props.intervalMs)
@@ -148,7 +149,7 @@ export class ChannelMonitor {
 		}
 
 		if (notFoundUsers.length > 0) {
-			console.warn('[monitor] canais não encontrados na twitch:', notFoundUsers)
+			logger.warn('[monitor] canais não encontrados na twitch:', notFoundUsers)
 		}
 	}
 }
